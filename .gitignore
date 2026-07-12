@@ -11,6 +11,8 @@ submission.tar.gz
 /eval/traces/
 # arena run artifacts (eval/arena.py: manifest/results/report/traces) — reproducible, not source
 /eval/arena_runs/
+# deck-track run artifacts (eval/deck_eval.py: report.json) — reproducible, not source
+/eval/deck_runs/
 venv/
 __pycache__/
 *.pyc

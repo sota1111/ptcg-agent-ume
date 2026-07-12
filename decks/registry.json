@@ -1,0 +1,12 @@
+{
+  "current": "v1",
+  "versions": {
+    "v1": {
+      "file": "champion_v1.csv",
+      "deck_hash": "sha1:8c326ebadcf97c33",
+      "created": "2026-07-12",
+      "notes": "Initial champion = the submission deck (root deck.csv) at SOT-1651. Water-based; 6 Basic Pokémon, 35 Water Energy (energy_ratio 0.58), opening_stability 0.541. Legal (60 cards, <=4 copies non-energy, 1 ACE SPEC).",
+      "source_issue": "SOT-1651"
+    }
+  }
+}
