@@ -1,0 +1,110 @@
+{
+  "n": 200,
+  "seed": 0,
+  "baseline_win_rate": 0.51,
+  "rows": [
+    {
+      "variant": "full",
+      "disabled": null,
+      "win_rate": 0.51,
+      "ci95_low": 0.4412,
+      "ci95_high": 0.5784,
+      "wins": 102,
+      "losses": 98,
+      "draws": 0,
+      "faults": 0,
+      "p99_ms": 6.38
+    },
+    {
+      "variant": "-prize",
+      "disabled": "prize",
+      "win_rate": 0.54,
+      "ci95_low": 0.4708,
+      "ci95_high": 0.6077,
+      "wins": 108,
+      "losses": 92,
+      "draws": 0,
+      "faults": 0,
+      "p99_ms": 6.17,
+      "delta_win_rate": 0.03
+    },
+    {
+      "variant": "-active_survival",
+      "disabled": "active_survival",
+      "win_rate": 0.47,
+      "ci95_low": 0.402,
+      "ci95_high": 0.5391,
+      "wins": 94,
+      "losses": 106,
+      "draws": 0,
+      "faults": 0,
+      "p99_ms": 7.22,
+      "delta_win_rate": -0.04
+    },
+    {
+      "variant": "-ko_threat",
+      "disabled": "ko_threat",
+      "win_rate": 0.485,
+      "ci95_low": 0.4167,
+      "ci95_high": 0.5539,
+      "wins": 97,
+      "losses": 103,
+      "draws": 0,
+      "faults": 0,
+      "p99_ms": 5.77,
+      "delta_win_rate": -0.025
+    },
+    {
+      "variant": "-bench_dev",
+      "disabled": "bench_dev",
+      "win_rate": 0.51,
+      "ci95_low": 0.4412,
+      "ci95_high": 0.5784,
+      "wins": 102,
+      "losses": 98,
+      "draws": 0,
+      "faults": 0,
+      "p99_ms": 6.72,
+      "delta_win_rate": 0.0
+    },
+    {
+      "variant": "-hand_value",
+      "disabled": "hand_value",
+      "win_rate": 0.52,
+      "ci95_low": 0.451,
+      "ci95_high": 0.5882,
+      "wins": 104,
+      "losses": 96,
+      "draws": 0,
+      "faults": 0,
+      "p99_ms": 7.18,
+      "delta_win_rate": 0.01
+    },
+    {
+      "variant": "-energy_tempo",
+      "disabled": "energy_tempo",
+      "win_rate": 0.475,
+      "ci95_low": 0.4069,
+      "ci95_high": 0.544,
+      "wins": 95,
+      "losses": 105,
+      "draws": 0,
+      "faults": 0,
+      "p99_ms": 6.35,
+      "delta_win_rate": -0.035
+    },
+    {
+      "variant": "-retreat_capacity",
+      "disabled": "retreat_capacity",
+      "win_rate": 0.51,
+      "ci95_low": 0.4412,
+      "ci95_high": 0.5784,
+      "wins": 102,
+      "losses": 98,
+      "draws": 0,
+      "faults": 0,
+      "p99_ms": 4.78,
+      "delta_win_rate": 0.0
+    }
+  ]
+}
