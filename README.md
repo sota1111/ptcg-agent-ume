@@ -4,6 +4,7 @@ Agent & local evaluation environment for the **Pokémon TCG AI Battle Challenge*
 
 - Competition (Simulation): https://www.kaggle.com/competitions/pokemon-tcg-ai-battle
 - Competition (Strategy):   https://www.kaggle.com/competitions/pokemon-tcg-ai-battle-challenge-strategy
+- **Competition info summary:** [`docs/competition.md`](docs/competition.md)
 
 ## ⚠️ License note
 The battle engine (`cg/`, `libcg.so`) and card data (`data/`) are **competition-use-only and must not
