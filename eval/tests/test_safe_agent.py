@@ -211,15 +211,22 @@ def test_random_agent_zero_unsupported():
     assert sum(s.handled for s in agent.stats.values()) > 0
 
 
-def test_rule_agent_skeleton_fully_unsupported():
+def test_rule_agent_handles_setup_contexts_and_defers_boardless_main():
+    # R1 had no tactics (未対応率 = 1.0); R2 added MAIN; R3 (SOT-1648) adds the setup /
+    # forced-selection contexts, so the RuleAgent now *handles* those known contexts and
+    # is no longer fully unsupported. The only known context left unsupported on these
+    # synthetic (boardless) selects is MAIN, whose R2 policy needs a live board.
     agent = RuleAgent(seed=7)
     known = [f for f in battery()
              if f["type"] in KNOWN_SELECT_TYPES and f["context"] in {int(c) for c in SelectContext}]
     for f in known:
         agent.act(make_obs(f))
-    # R1 skeleton has no tactics: every known-context decision is unsupported.
-    assert agent.unsupported_rate() == 1.0
-    assert sum(s.handled for s in agent.stats.values()) == 0
+    assert 0.0 < agent.unsupported_rate() < 1.0
+    assert sum(s.handled for s in agent.stats.values()) > 0
+    # Every remaining unsupported decision is a boardless MAIN, not a setup context.
+    for key, s in agent.stats.items():
+        if s.unsupported:
+            assert key[1] == int(SelectContext.MAIN), f"{key} unexpectedly unsupported"
     # ...and it still emitted only legal actions (checked in the battery test above).
 
 
