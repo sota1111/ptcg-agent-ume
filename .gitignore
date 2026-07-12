@@ -9,6 +9,8 @@ submission.tar.gz
 # --- Local dev artifacts ---
 # generated match traces (eval/trace.py) — reproducible, not source
 /eval/traces/
+# arena run artifacts (eval/arena.py: manifest/results/report/traces) — reproducible, not source
+/eval/arena_runs/
 venv/
 __pycache__/
 *.pyc
