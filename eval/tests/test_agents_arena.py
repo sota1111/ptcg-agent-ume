@@ -72,16 +72,51 @@ def test_arena_injects_random_and_rule(deck):
 
 
 @requires_engine
-def test_rule_skeleton_measures_and_stays_legal(deck):
-    """A direct match lets us read the RuleAgent skeleton's own measurement."""
+def test_rule_agent_handles_main_and_stays_legal(deck):
+    """A direct match lets us read the RuleAgent's own measurement (R2: MAIN policy)."""
+    from cg.api import SelectContext, SelectType
+
     rng_agent = RandomAgent(seed=1)
     rule = RuleAgent(seed=2)
     result = play_match(deck, deck, [rng_agent, rule], max_steps=100_000)
 
     # The match resolved without attributing a fault to either always-legal agent.
     assert result.faulted_player is None
-    # The skeleton actually made decisions and recorded encounters for real contexts.
+    # The agent actually made decisions and recorded encounters for real contexts.
     assert sum(s.encounters for s in rule.stats.values()) > 0
-    # R1 skeleton has no tactics, so every encounter is unsupported and fell back.
-    assert rule.unsupported_rate() == 1.0
-    assert sum(s.handled for s in rule.stats.values()) == 0
+    # R2 registers the MAIN turn policy, so the (MAIN, MAIN) context is handled
+    # (not unsupported) whenever it was encountered, dropping the overall 未対応率.
+    main_key = (int(SelectType.MAIN), int(SelectContext.MAIN))
+    main_stat = rule.stats.get(main_key)
+    assert main_stat is not None and main_stat.encounters > 0
+    assert main_stat.handled > 0
+    assert rule.unsupported_rate(main_key) < 1.0
+    assert rule.unsupported_rate() < 1.0
+
+
+@requires_engine
+def test_rule_beats_random_ci_lower_bound(deck):
+    """受け入れ条件②: RuleAgent vs Random, paired N>=200, win-rate 95% CI lower > 0.50.
+
+    The cabt engine takes no seed, so outcomes are not bit-reproducible; the margin
+    here (RuleAgent's MAIN-turn tempo policy vs a uniform-random baseline on the same
+    deck) is wide enough that the Wilson lower bound clears 0.50 with large slack.
+    """
+    report = run_arena(
+        lambda s: RuleAgent(seed=s),
+        lambda s: RandomAgent(seed=s),
+        deck0=deck,
+        n_matches=200,
+        side_swap=True,
+        label_a="rule",
+        label_b="random",
+        write_outputs=False,
+        record_traces=False,
+    )
+    assert report.totals["n"] == 200
+    assert report.safety["a_faults"] == 0  # the rule policy never emits an illegal move
+    lo, _hi = report.win_rates["a_win_rate_ci95"]
+    assert lo > 0.50, (
+        f"rule win rate {report.win_rates['a_win_rate']:.3f} "
+        f"CI95 lower {lo:.3f} did not clear 0.50"
+    )
