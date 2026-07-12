@@ -95,6 +95,32 @@ def test_rule_agent_handles_main_and_stays_legal(deck):
 
 
 @requires_engine
+def test_rule_covers_every_encountered_context_and_stays_legal(deck):
+    """受け入れ条件 (R3): over real matches, every non-MAIN context the RuleAgent
+    *encounters* is handled by a dedicated policy (未対応 == 0), and it never faults.
+
+    R2 covered only (MAIN, MAIN); R3 adds the setup / forced-selection contexts, so the
+    live encounter/未対応 measurement now shows zero unsupported decisions across the many
+    contexts a full game surfaces (initial active/bench, go-first, search, attach, discard,
+    promote-after-KO, draw-count, …).
+    """
+    seen_contexts = set()
+    for i in range(30):
+        rule = RuleAgent(seed=i)
+        result = play_match(deck, deck, [rule, RandomAgent(seed=500 + i)], max_steps=100_000)
+        # An always-legal agent must never be blamed for a fault.
+        assert result.faulted_player != 0
+        for key, stat in rule.stats.items():
+            seen_contexts.add(key)
+            # Every encountered context is handled by a real policy — no 未対応 fallback.
+            assert stat.unsupported == 0, (
+                f"context {key} was unsupported {stat.unsupported}/{stat.encounters} times"
+            )
+    # A full game surfaces many contexts beyond MAIN — confirm we actually exercised them.
+    assert len(seen_contexts) >= 5
+
+
+@requires_engine
 def test_rule_beats_random_ci_lower_bound(deck):
     """受け入れ条件②: RuleAgent vs Random, paired N>=200, win-rate 95% CI lower > 0.50.
 
