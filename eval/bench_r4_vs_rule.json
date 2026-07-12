@@ -1,0 +1,31 @@
+{
+  "n": 400,
+  "eval_wins": 212,
+  "rule_wins": 188,
+  "draws": 0,
+  "undecided": 0,
+  "eval_win_rate": 0.53,
+  "ci95_low": 0.4810361559058216,
+  "ci95_high": 0.5783931064341206,
+  "a_faults": 0,
+  "b_faults": 0,
+  "a_fault_categories": {},
+  "eval_latency": {
+    "n_decisions": 7340,
+    "mean_ms": 0.6688815345848106,
+    "p50_ms": 0.1496825134381652,
+    "p95_ms": 2.896477188915012,
+    "p99_ms": 5.479712639935313,
+    "max_ms": 12.008605990558863
+  },
+  "search_stats": {
+    "attempts": 2088,
+    "chosen": 2088,
+    "fallbacks": 0,
+    "leaks": 0
+  },
+  "disabled": [],
+  "run_dir": "eval/arena_runs/bench_r4_vs_rule_n400",
+  "promote_threshold": 0.5,
+  "passed": false
+}
