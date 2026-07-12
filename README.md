@@ -48,6 +48,21 @@ fixed Python seed.
 venv/bin/python -m pytest eval/tests/   # run the eval test suite (needs cg/)
 ```
 
+## Deck-optimization track (SOT-1651)
+An **orthogonal** track that fixes the agent (the champion policy) and compares only the
+**decks**, so deck iteration is never confounded with policy iteration. `eval/deck_eval.py`
+holds one agent fixed on both seats and **swaps the decks** between seats every other match
+(the dual of the Arena's agent-swap), giving an unbiased *paired* deck A/B: in a mirror the
+win-rate CI brackets 0.5 even though the 先手 advantage is large. It also reports match-free
+deck metrics — legality (60 cards / ≤4 copies / ≤1 ACE SPEC / ≥1 Basic Pokémon), energy ratio,
+and 初動安定性 (hypergeometric P(≥1 Basic Pokémon in the opening hand)) — and `run_gauntlet`
+for champion-vs-many matchup別勝率. Champion decks are version-managed under `decks/`
+(`decks/registry.json` pins each version to a content hash).
+
+```bash
+venv/bin/python eval/deck_eval.py 200 decks/challenger_example.csv  # paired A/B, N=200
+```
+
 ## Setup
 ```bash
 python3 -m venv venv && venv/bin/pip install -r requirements.txt
