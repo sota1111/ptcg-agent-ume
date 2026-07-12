@@ -28,6 +28,7 @@ from .protocol import (
 )
 from .random_agent import RandomAgent
 from .rule_agent import RuleAgent
+from .search_agent import SearchAgent
 
 __all__ = [
     "Agent",
@@ -40,4 +41,5 @@ __all__ = [
     "legal_random_action",
     "RandomAgent",
     "RuleAgent",
+    "SearchAgent",
 ]
