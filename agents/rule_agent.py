@@ -1,25 +1,33 @@
-"""RuleAgent — rule-based policy agent (SOT-1646, R1: skeleton only).
+"""RuleAgent — rule-based policy agent (SOT-1646 skeleton; SOT-1647 R2: MAIN turn).
 
-R1 delivers only the **skeleton**: a :class:`~agents.protocol.SafeAgent` with an empty
-per-``(SelectType, SelectContext)`` handler table. Every selection therefore defers to
-the safety fallback (legal random) and is recorded as *unsupported*, so the agent
-starts at 未対応率 = 1.0 and stays legal / never crashes. From R2 on, tactics are added
-by registering handlers (via :meth:`register` / the ``_handlers`` table); each handler
-added drops the unsupported rate for its context, and the measurement in
-:class:`SafeAgent` makes that progress observable.
+The agent is a :class:`~agents.protocol.SafeAgent` with a per-``(SelectType,
+SelectContext)`` handler table: a registered handler supplies the tactic for its
+context; every other selection defers to the safety fallback (legal random) and is
+recorded as *unsupported*. So the agent stays legal / never crashes, and each handler
+added drops the 未対応率 for its context (observable via :class:`SafeAgent`'s
+measurement).
 
-Keeping the policy here — on top of, but separate from, the ``protocol`` skeleton —
-is the SOT-1631 案B split: the safety骨格 is developed and verified independently of
-whatever tactics the rule-based agent grows.
+* **R1 (SOT-1646)** shipped the skeleton — an empty table (未対応率 = 1.0).
+* **R2 (SOT-1647)** registers the **MAIN turn** handler: the minimal winning policy
+  in :mod:`agents.rule_scoring`. The decision logic itself is a pure function of the
+  observation + static card data (kept in ``rule_scoring``, engine/I-O free); this
+  class only wires it in — builds the card index from the engine once, runs the
+  scorer for a MAIN selection, and returns the best option (ties broken by the
+  agent's seeded RNG).
+
+Keeping the policy separate from the ``protocol`` skeleton is the SOT-1631 案B split:
+the safety骨格 is developed and verified independently of the tactics grown here.
 """
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Callable, Optional
 
-from cg.api import Observation
+from cg.api import Observation, SelectContext, SelectType
 
 from .protocol import SafeAgent, SelectKey
+from .rule_scoring import CardIndex, pick_best_option, score_main_options
 
 __all__ = ["RuleAgent", "Handler"]
 
@@ -27,26 +35,57 @@ __all__ = ["RuleAgent", "Handler"]
 # Returning ``None`` defers to the SafeAgent fallback exactly like an absent handler.
 Handler = Callable[[dict, Observation, object], Optional[list[int]]]
 
+# The MAIN turn selection this agent's R2 policy handles.
+_MAIN_KEY: SelectKey = (int(SelectType.MAIN), int(SelectContext.MAIN))
+
+
+@lru_cache(maxsize=1)
+def _card_index() -> CardIndex:
+    """Static card/attack reference data, loaded from the engine once per process.
+
+    The scorer needs card/attack data (damage, weakness, …) but must stay pure, so
+    the single engine read is confined here and cached — the scoring functions in
+    :mod:`agents.rule_scoring` only ever receive the resulting :class:`CardIndex`.
+    """
+    from cg.api import all_attack, all_card_data
+
+    return CardIndex.from_engine(all_card_data(), all_attack())
+
 
 class RuleAgent(SafeAgent):
-    """Rule-based agent skeleton (R1). No tactics yet — all selections fall back.
+    """Rule-based agent: minimal winning MAIN-turn policy (R2), else safe fallback.
 
-    Tactics are registered per ``(SelectType, SelectContext)`` key. R1 ships with an
-    empty table on purpose (方策は R2 以降); the class is the stable seam those rounds
-    extend without touching the safety skeleton.
+    Tactics are registered per ``(SelectType, SelectContext)`` key; the class is the
+    stable seam later rounds extend without touching the safety skeleton. R2 registers
+    the MAIN handler (:mod:`agents.rule_scoring`); other contexts still fall back.
     """
 
     name = "rule"
-    version = "0"
+    version = "2"
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        # (type, context) -> handler. Empty in R1; populated from R2 on.
+        # (type, context) -> handler. Populated by _register_handlers.
         self._handlers: dict[SelectKey, Handler] = {}
         self._register_handlers()
 
     def _register_handlers(self) -> None:
-        """Register the rule-based tactics. Intentionally empty in R1 (skeleton)."""
+        """Register the rule-based tactics. R2: the MAIN turn policy."""
+        self.register(_MAIN_KEY, self._main_policy)
+
+    def _main_policy(self, obs: dict, parsed: Observation, select) -> Optional[list[int]]:
+        """MAIN turn tactic: score the legal options and take the best (or defer).
+
+        Pure scoring lives in :mod:`agents.rule_scoring`; this only supplies the card
+        index and the RNG for tie-breaking. Returns ``None`` (defer to the safety
+        fallback) when there is no board state to reason about, so a degenerate/
+        unexpected MAIN selection still resolves safely.
+        """
+        scored = score_main_options(parsed, select, _card_index())
+        if not scored:
+            return None
+        best = pick_best_option(scored, self._rng)
+        return None if best is None else [best]
 
     def register(self, key: SelectKey, handler: Handler) -> None:
         """Bind ``handler`` to a ``(SelectType, SelectContext)`` key (R2+ tactics)."""
