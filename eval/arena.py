@@ -48,7 +48,7 @@ import json
 import math
 import os
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from inspect import signature
 from typing import Any, Callable, Optional, Sequence, Union
 
@@ -278,9 +278,15 @@ class ArenaReport:
     run_dir: Optional[str] = None
     results_path: Optional[str] = None
     report_path: Optional[str] = None
+    # The per-match records this report aggregates. Kept for in-process consumers
+    # (e.g. :mod:`eval.suite`) but deliberately excluded from :meth:`to_dict` /
+    # ``report.json`` so the persisted report stays a compact summary.
+    records: list = field(default_factory=list, repr=False)
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        d.pop("records", None)
+        return d
 
     def summary_line(self) -> str:
         t = self.totals
@@ -598,6 +604,7 @@ def run_arena(
             results_fh.close()
 
     report = aggregate(records, latencies_a, latencies_b, config)
+    report.records = records
     report.run_dir = run_dir if write_outputs else None
     report.results_path = results_path if write_outputs else None
     report.report_path = report_path if write_outputs else None
