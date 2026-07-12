@@ -14,6 +14,14 @@ measurement).
   class only wires it in — builds the card index from the engine once, runs the
   scorer for a MAIN selection, and returns the best option (ties broken by the
   agent's seeded RNG).
+* **R3 (SOT-1648)** covers every *other* selection — the setup / forced-selection
+  contexts (initial active/bench, go-first, mulligan, promote-after-KO, attach,
+  discard, search, prize, special-condition, …). Their tactics live in
+  :mod:`agents.setup_scoring` (also pure) and are dispatched by ``SelectContext`` so
+  any encountered non-MAIN context is handled by a dedicated policy rather than
+  falling through to legal-random. Multi-selection is treated as a combination that
+  weighs future resources. An unmapped/unknown context still defers to the safety
+  fallback (違法出力0).
 
 Keeping the policy separate from the ``protocol`` skeleton is the SOT-1631 案B split:
 the safety骨格 is developed and verified independently of the tactics grown here.
@@ -28,6 +36,7 @@ from cg.api import Observation, SelectContext, SelectType
 
 from .protocol import SafeAgent, SelectKey
 from .rule_scoring import CardIndex, pick_best_option, score_main_options
+from .setup_scoring import select_for_context
 
 __all__ = ["RuleAgent", "Handler"]
 
@@ -61,7 +70,7 @@ class RuleAgent(SafeAgent):
     """
 
     name = "rule"
-    version = "2"
+    version = "3"
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -92,7 +101,14 @@ class RuleAgent(SafeAgent):
         self._handlers[key] = handler
 
     def policy(self, obs: dict, parsed: Observation, select) -> Optional[list[int]]:
+        # 1. An exact (SelectType, SelectContext) handler wins — R2's MAIN policy.
         handler = self._handlers.get((int(select.type), int(select.context)))
-        if handler is None:
-            return None  # no tactic for this context yet → SafeAgent falls back
-        return handler(obs, parsed, select)
+        if handler is not None:
+            proposed = handler(obs, parsed, select)
+            if proposed is not None:
+                return proposed
+            # handler declined (e.g. degenerate MAIN with no board) → try the context
+            # router below, then finally the SafeAgent legal-random fallback.
+        # 2. R3: a per-SelectContext tactic for setup / forced selections. Returns None
+        #    for an unmapped/unknown context, so the SafeAgent fallback keeps us legal.
+        return select_for_context(parsed, select, _card_index(), self._rng)
