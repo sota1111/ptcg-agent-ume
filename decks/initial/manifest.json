@@ -1,0 +1,271 @@
+[
+  {
+    "file": "01_dragapult.csv",
+    "archetype": "Dragapult ex",
+    "source": {
+      "event": "Special Event Turin",
+      "date": "2026-06-06",
+      "placement": "8th",
+      "player": "Pedro Vicêncio",
+      "url": "https://limitlesstcg.com/decks/list/27931"
+    },
+    "substitutions": [
+      "1x Special Red Card (CRI 82) -> +1 Crispin (ID 1198)"
+    ],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "02_raging_bolt_ogerpon.csv",
+    "archetype": "Raging Bolt Ogerpon (タケルライコ・オーガポン)",
+    "source": {
+      "event": "Special Event Turin",
+      "date": "2026-06-06",
+      "placement": "4th",
+      "player": "Toby Clark",
+      "url": "https://limitlesstcg.com/decks/list/27922",
+      "also_played": "NAIC 2026 (114th, 271st, 579th)"
+    },
+    "substitutions": [],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "03_dragapult_blaziken.csv",
+    "archetype": "Dragapult Blaziken (ドラパルト+バシャーモ)",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/27928"
+    },
+    "substitutions": [
+      "1x Special Red Card (CRI 82) -> +1 Boss’s Orders (ID 1182)"
+    ],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "04_dragapult_dusknoir.csv",
+    "archetype": "Dragapult Dusknoir (ドラパルト・ヨノワール型)",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/27940"
+    },
+    "substitutions": [
+      "1x Special Red Card (CRI 82) -> +1 Boss’s Orders (ID 1182)"
+    ],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "05_dragapult_dudunsparce.csv",
+    "archetype": "Dragapult Dudunsparce (ドラパルト・ノココッチ型)",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/27937"
+    },
+    "substitutions": [
+      "1x Special Red Card (CRI 82) -> +1 Crispin (ID 1198)"
+    ],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "06_hydrapple.csv",
+    "archetype": "Hydrapple (カミツオロチ)",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/27932"
+    },
+    "substitutions": [
+      "1x Special Red Card (CRI 82) -> +1 Boss’s Orders (ID 1182)"
+    ],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "07_n_s_zoroark_n.csv",
+    "archetype": "N's Zoroark (Nのゾロアーク)",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/27935"
+    },
+    "substitutions": [
+      "1x Special Red Card (CRI 82) -> +1 Cyrano (ID 1205)"
+    ],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "08_ogerpon_box.csv",
+    "archetype": "Ogerpon Box (オーガポンバレット)",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/27942"
+    },
+    "substitutions": [
+      "1x Special Red Card (CRI 82) -> +1 Area Zero Underdepths (ID 1250)"
+    ],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "09_slowking.csv",
+    "archetype": "Slowking (ヤドラン/スッカラカン系)",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/27926"
+    },
+    "substitutions": [],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "10_hop_s_trevenant.csv",
+    "archetype": "Hop's Trevenant (ホップのオーロット)",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/27927"
+    },
+    "substitutions": [],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "11_lillie_s_clefairy.csv",
+    "archetype": "Lillie's Clefairy (リーリエのピッピ)",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/27921"
+    },
+    "substitutions": [
+      "1x Prism Tower (CRI 80) -> +1 Boss’s Orders (ID 1182)"
+    ],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "12_alakazam_dudunsparce.csv",
+    "archetype": "Alakazam Dudunsparce (フーディン・ノココッチ)",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/27929"
+    },
+    "substitutions": [
+      "1x Special Red Card (CRI 82) -> +1 Hilda (ID 1225)"
+    ],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "13_festival_lead.csv",
+    "archetype": "Festival Lead (カミッチュ/祭り屋)",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/27943"
+    },
+    "substitutions": [],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "14_mega_lucario_ex.csv",
+    "archetype": "Mega Lucario ex",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/27961"
+    },
+    "substitutions": [
+      "1x Special Red Card (CRI 82) -> +1 Buddy-Buddy Poffin (ID 1086)"
+    ],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "15_marnie_s_grimmsnarl_ex.csv",
+    "archetype": "Marnie's Grimmsnarl ex",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/28345"
+    },
+    "substitutions": [
+      "1x Special Red Card (CRI 82) -> +1 Boss’s Orders (ID 1182)"
+    ],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "16_crustle_mysterious_rock_inn.csv",
+    "archetype": "Crustle Mysterious Rock Inn",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/28252"
+    },
+    "substitutions": [
+      "1x Pokémon Center Lady (MEG 123) -> +1 Pokégear 3.0 (ID 1122)"
+    ],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "17_rocket_s_mewtwo_ex.csv",
+    "archetype": "Rocket's Mewtwo ex",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/28254"
+    },
+    "substitutions": [
+      "2x Prism Tower (CRI 80) -> +1 Night Stretcher (ID 1097)",
+      "2x Prism Tower (CRI 80) -> +1 Team Rocket's Giovanni (ID 1218)"
+    ],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "18_rocket_s_honchkrow.csv",
+    "archetype": "Rocket's Honchkrow",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/26267"
+    },
+    "substitutions": [],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "19_ethan_s_typhlosion.csv",
+    "archetype": "Ethan's Typhlosion",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/28302"
+    },
+    "substitutions": [],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "20_cynthia_s_garchomp_ex.csv",
+    "archetype": "Cynthia's Garchomp ex",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/28352"
+    },
+    "substitutions": [],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "21_lillie_s_clefairy_ex_naic_champion.csv",
+    "archetype": "Lillie's Clefairy ex NAIC Champion",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/28249"
+    },
+    "substitutions": [],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "22_dragapult_ex_naic_2nd.csv",
+    "archetype": "Dragapult ex NAIC 2nd",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/28236"
+    },
+    "substitutions": [
+      "1x Special Red Card (CRI 82) -> +1 Crispin (ID 1198)"
+    ],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "23_slowking_naic_4th.csv",
+    "archetype": "Slowking NAIC 4th",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/28251"
+    },
+    "substitutions": [],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "24_n_s_zoroark_ex_naic_10th.csv",
+    "archetype": "N's Zoroark ex NAIC 10th",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/28257"
+    },
+    "substitutions": [
+      "4x Transformation Tome (CRI 83) -> +1 Boss’s Orders (ID 1182)",
+      "4x Transformation Tome (CRI 83) -> +1 N’s PP Up (ID 1113)",
+      "4x Transformation Tome (CRI 83) -> +1 Ultra Ball (ID 1121)",
+      "4x Transformation Tome (CRI 83) -> +1 Binding Mochi (ID 1162)",
+      "1x Special Red Card (CRI 82) -> +1 Binding Mochi (ID 1162)"
+    ],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  },
+  {
+    "file": "25_mega_lopunny_ex.csv",
+    "archetype": "Mega Lopunny ex",
+    "source": {
+      "url": "https://limitlesstcg.com/decks/list/28529"
+    },
+    "substitutions": [],
+    "engine_verified": "battle_start accepted; full random-vs-baseline match completed (2026-07-14)"
+  }
+]
