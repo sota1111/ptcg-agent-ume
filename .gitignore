@@ -18,3 +18,5 @@ __pycache__/
 *.pyc
 .env
 .DS_Store
+# self-play PPO training data (eval/selfplay.py: JSONL) — regenerable, not source
+/eval/selfplay_runs/
