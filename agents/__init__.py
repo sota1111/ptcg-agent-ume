@@ -10,7 +10,11 @@ always-legal safety skeleton:
 * :mod:`agents.random_agent` — :class:`~agents.random_agent.RandomAgent`, the legal
   random baseline.
 * :mod:`agents.rule_agent` — :class:`~agents.rule_agent.RuleAgent`, the rule-based
-  policy (R1: skeleton only; tactics from R2 on).
+  line (R2–R3): the former champion, kept as the promotion-benchmark baseline and
+  the self-play data opponent.
+* :mod:`agents.ppo_agent` / :mod:`agents.mcts` / :mod:`agents.harness` — the PPO
+  track (SOT-1683): learned policy (SOT-1689), critical-position determinized MCTS
+  (SOT-1690), and the candidate harness + submission agent (SOT-1691).
 
 Every agent exposes the Kaggle submission entry point ``act(obs) -> list[int]`` and so
 plugs directly into :func:`eval.match.play_match` / :func:`eval.arena.run_arena`.
@@ -26,10 +30,10 @@ from .protocol import (
     legal_random_action,
     validate_selection,
 )
+from .harness import HarnessAgent
 from .ppo_agent import PPOAgent
 from .random_agent import RandomAgent
 from .rule_agent import RuleAgent
-from .search_agent import SearchAgent
 
 __all__ = [
     "Agent",
@@ -40,8 +44,8 @@ __all__ = [
     "ContextStats",
     "validate_selection",
     "legal_random_action",
+    "HarnessAgent",
     "PPOAgent",
     "RandomAgent",
     "RuleAgent",
-    "SearchAgent",
 ]
