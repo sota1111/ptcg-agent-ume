@@ -26,6 +26,7 @@ from .protocol import (
     legal_random_action,
     validate_selection,
 )
+from .harness import HarnessAgent
 from .ppo_agent import PPOAgent
 from .random_agent import RandomAgent
 from .rule_agent import RuleAgent
@@ -40,6 +41,7 @@ __all__ = [
     "ContextStats",
     "validate_selection",
     "legal_random_action",
+    "HarnessAgent",
     "PPOAgent",
     "RandomAgent",
     "RuleAgent",
