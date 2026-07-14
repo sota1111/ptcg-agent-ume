@@ -1,0 +1,58 @@
+{
+  "policy": "/workspaces/ptcg-agent-ume/data/policy.json",
+  "n": 200,
+  "seed": 0,
+  "mcts_config": {
+    "time_limit_s": 0.4,
+    "n_determinizations": 3,
+    "max_candidates": 8,
+    "rollout_depth": 6,
+    "ucb_c": 1.0,
+    "deviate_margin": 0.1,
+    "entropy_threshold": 1.9,
+    "value_threshold": 0.06,
+    "min_options": 2
+  },
+  "mcts_wins": 126,
+  "ppo_wins": 74,
+  "draws": 0,
+  "undecided": 0,
+  "mcts_win_rate": 0.63,
+  "ci95_low": 0.5612262992405018,
+  "ci95_high": 0.6938739159014088,
+  "mcts_faults": 0,
+  "ppo_faults": 0,
+  "mcts_fault_categories": {},
+  "latency_mcts": {
+    "n_decisions": 3979,
+    "mean_ms": 119.86121488676565,
+    "p50_ms": 0.4177950322628021,
+    "p95_ms": 401.2002064380795,
+    "p99_ms": 401.3424882153049,
+    "max_ms": 401.86607488431036
+  },
+  "latency_ppo": {
+    "n_decisions": 3713,
+    "mean_ms": 0.42661131081719894,
+    "p50_ms": 0.39594690315425396,
+    "p95_ms": 0.6204828619956969,
+    "p99_ms": 0.7511731330305339,
+    "max_ms": 1.2346920557320118
+  },
+  "mcts_stats": {
+    "decisions": 3979,
+    "eligible": 3391,
+    "activations": 1197,
+    "activation_rate": 0.30082935410907263,
+    "searched": 1189,
+    "overrides": 543,
+    "failures": 8,
+    "determinizations_ok": 3552,
+    "determinizations_failed": 39,
+    "simulations": 171768,
+    "search_ms_mean": 397.0043712035724,
+    "search_ms_max": 401.0963528417051
+  },
+  "run_dir": "eval/arena_runs/bench_mcts_vs_ppo_n200",
+  "passed": true
+}
