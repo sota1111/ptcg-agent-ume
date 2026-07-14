@@ -88,9 +88,10 @@ RECORD_FIELDS = {
     "steps": int,
 }
 
-# The self-play pairings this CLI offers: the current champion (rule) and the
-# random baseline, built per match with the run's per-match seed.
-AGENT_KINDS = ("rule", "random")
+# The self-play pairings this CLI offers: the current champion (rule), the
+# random baseline, and the PPO policy (SOT-1689), built per match with the
+# run's per-match seed.
+AGENT_KINDS = ("rule", "random", "ppo")
 
 
 def _agent_factory(kind: str) -> Callable[[int], object]:
@@ -103,7 +104,33 @@ def _agent_factory(kind: str) -> Callable[[int], object]:
         from agents import RandomAgent
 
         return lambda seed: RandomAgent(seed=seed)
+    if kind == "ppo":
+        from agents import PPOAgent
+
+        return lambda seed: PPOAgent(seed=seed)
     raise ValueError(f"unknown agent kind {kind!r} (choose from {AGENT_KINDS})")
+
+
+def _resolve_agent_spec(spec) -> tuple[str, Callable[[int], object]]:
+    """Normalise one side of the ``agents`` pairing to ``(label, factory)``.
+
+    A spec is either a kind string from :data:`AGENT_KINDS` or a
+    ``(label, factory)`` pair — the latter lets the PPO training loop
+    (:mod:`train.ppo`) inject agents carrying in-memory weights while reusing
+    this pipeline unchanged for its per-iteration self-play.
+    """
+    if isinstance(spec, str):
+        return spec, _agent_factory(spec)
+    if (
+        isinstance(spec, tuple)
+        and len(spec) == 2
+        and isinstance(spec[0], str)
+        and callable(spec[1])
+    ):
+        return spec
+    raise ValueError(
+        f"agent spec must be one of {AGENT_KINDS} or a (label, factory) pair, got {spec!r}"
+    )
 
 
 def validate_record(record: dict) -> list[str]:
@@ -249,7 +276,7 @@ def run_selfplay(
     games: int,
     out_path: str,
     *,
-    agents: tuple[str, str] = ("rule", "rule"),
+    agents: tuple = ("rule", "rule"),  # each side: an AGENT_KINDS str or (label, factory)
     deck0: Optional[list[int]] = None,
     deck1: Optional[list[int]] = None,
     base_seed: int = 0,
@@ -274,9 +301,8 @@ def run_selfplay(
 
     if games <= 0:
         raise ValueError("games must be positive")
-    kind_a, kind_b = agents
-    factory_a = _agent_factory(kind_a)
-    factory_b = _agent_factory(kind_b)
+    kind_a, factory_a = _resolve_agent_spec(agents[0])
+    kind_b, factory_b = _resolve_agent_spec(agents[1])
     if deck0 is None:
         deck0 = load_deck("deck.csv")
     if deck1 is None:

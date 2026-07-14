@@ -4,3 +4,7 @@
 
 # Test-only (eval/tests): not needed to build a submission.
 pytest>=8
+
+# Training-only (train/ppo.py, SOT-1689): local PPO learning. Never imported by
+# agents/ — inference is pure Python + data/policy.json (no runtime pip deps).
+numpy>=2

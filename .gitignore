@@ -1,8 +1,10 @@
 # --- License-restricted (competition-use-only, DO NOT COMMIT) ---
 # cabt engine bindings + libcg.so/.dll/.dylib
 /cg/
-# card CSVs / PDFs
-/data/
+# card CSVs / PDFs (per-file so the trained policy below can be un-ignored)
+/data/*
+# ...but the PPO policy artifact is OUR trained output, not licensed data (SOT-1689)
+!/data/policy.json
 *.zip
 submission.tar.gz
 
