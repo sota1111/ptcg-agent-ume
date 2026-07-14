@@ -18,6 +18,13 @@ Decision path per selection:
    *defer* (return ``None``), so the SafeAgent skeleton falls back to a legal
    random action. 違法出力0 therefore holds no matter what state the artifact
    is in, and the skeleton still revalidates every proposed action anyway.
+
+MCTS reinforcement (SOT-1690). With ``mcts=True`` the sampled pick is, at
+**critical positions only** (high policy entropy / value near 0 — see
+:mod:`agents.mcts`), re-evaluated by a time-capped determinized MCTS and
+overridden when the search finds a clearly better move. Every search failure
+keeps the plain policy action, so the safety contract above is unchanged; with
+``mcts=False`` (the default) the decision path is byte-identical to SOT-1689.
 """
 
 from __future__ import annotations
@@ -29,7 +36,8 @@ from typing import Optional
 from cg.api import Observation
 
 from .features import FEATURE_DIM, FEATURE_VERSION, featurize
-from .policy_net import load_policy, sample_action, validate_policy
+from .mcts import DeterminizedMCTS, MCTSConfig, MCTSStats
+from .policy_net import forward, load_policy, sample_action, validate_policy
 from .protocol import SafeAgent
 
 __all__ = ["PPOAgent", "DEFAULT_POLICY_PATH"]
@@ -57,6 +65,8 @@ class PPOAgent(SafeAgent):
         deterministic: bool = False,
         temperature: float = 1.0,
         time_budget_s: Optional[float] = None,
+        mcts: bool = False,
+        mcts_config: Optional[MCTSConfig] = None,
     ) -> None:
         """Args:
         policy: an in-memory policy dict (used by the training loop between
@@ -65,6 +75,8 @@ class PPOAgent(SafeAgent):
         policy_path: JSON artifact to load (default :data:`DEFAULT_POLICY_PATH`).
         deterministic: argmax/top-k instead of softmax sampling.
         temperature: softmax temperature for sampling (ignored when deterministic).
+        mcts: reinforce critical positions with the determinized MCTS (SOT-1690).
+        mcts_config: thresholds/budgets for it (default :class:`~agents.mcts.MCTSConfig`).
         """
         super().__init__(seed=seed, rng=rng, time_budget_s=time_budget_s)
         if policy is not None:
@@ -78,6 +90,15 @@ class PPOAgent(SafeAgent):
             self._policy = None  # trained on another feature layout — don't misread it
         self._deterministic = deterministic
         self._temperature = temperature
+        #: 発動率/思考時間 measurement (populated only when ``mcts`` is on).
+        self.mcts_stats: Optional[MCTSStats] = None
+        self._mcts: Optional[DeterminizedMCTS] = None
+        if mcts and self._policy is not None:
+            self.mcts_stats = MCTSStats()
+            self._mcts = DeterminizedMCTS(
+                self._policy, mcts_config, rng=self._rng, stats=self.mcts_stats
+            )
+            self.name = "ppo+mcts"  # instance-level: reports/traces stay distinguishable
 
     @property
     def policy_loaded(self) -> bool:
@@ -87,13 +108,24 @@ class PPOAgent(SafeAgent):
     def policy(self, obs: dict, parsed: Observation, select) -> Optional[list[int]]:
         if self._policy is None or not select.option:
             return None
-        return sample_action(
+        features = featurize(obs)
+        logits: Optional[list[float]] = None
+        value = 0.0
+        if self._mcts is not None:
+            logits, value = forward(self._policy, features)  # reused below, one pass
+        action = sample_action(
             self._policy,
-            featurize(obs),
+            features,
             len(select.option),
             int(select.minCount),
             int(select.maxCount),
             self._rng,
             deterministic=self._deterministic,
             temperature=self._temperature,
+            logits=logits,
         )
+        if self._mcts is not None and logits is not None:
+            refined = self._mcts.maybe_search(obs, parsed, select, logits, value, action)
+            if refined is not None:
+                return refined
+        return action
