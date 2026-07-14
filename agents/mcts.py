@@ -16,7 +16,7 @@ Design contract
   ``/tmp``-calibration for SOT-1690) ``entropy >= 1.9 or |value| <= 0.06``
   activates on ≈25% of all decisions (≈30% of eligible single-select ones).
 * **Determinized root search.** Hidden zones are sampled per determinization
-  with the merged :class:`~agents.search_agent.UniformDeckPredictor`; each
+  with the merged :class:`~agents.predictor.UniformDeckPredictor`; each
   determinization opens ONE engine search session and runs simulations from the
   shared root: pick a root candidate by PUCT (PPO priors), step it, then roll
   out with the PPO policy for a bounded depth and score the leaf with the PPO
@@ -306,7 +306,7 @@ class DeterminizedMCTS:
         """
         from cg.api import search_begin, search_end
 
-        from .search_agent import UniformDeckPredictor
+        from .predictor import UniformDeckPredictor
 
         cfg = self.config
         predictor = UniformDeckPredictor(self._deck(), self._rng)
