@@ -174,6 +174,7 @@ def sample_action(
     *,
     deterministic: bool = False,
     temperature: float = 1.0,
+    logits: Optional[list[float]] = None,
 ) -> list[int]:
     """A guaranteed-legal action sampled from the policy distribution.
 
@@ -182,11 +183,14 @@ def sample_action(
     noise), so the first index is an exact softmax sample of the trained
     distribution. If the selection requires more picks than there are scored
     slots, the remainder is padded with random *unscored* legal indices.
+    ``logits`` short-circuits the forward pass when the caller already ran it
+    for this exact ``features`` vector (e.g. for a criticality judgement).
     """
     k = _pick_count(n_options, min_count, max_count)
     if k == 0:
         return []
-    logits, _ = forward(policy, features)
+    if logits is None:
+        logits, _ = forward(policy, features)
     scored = min(n_options, len(logits))
     temp = temperature if temperature > 0 else 1.0
 
