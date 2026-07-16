@@ -13,12 +13,16 @@ forward here implement the same math and must stay in lockstep.
 Algorithm
 ---------
 Vanilla PPO: clipped surrogate objective + GAE(γ, λ), Adam, a value-MSE head and
-an entropy bonus, over K epochs of minibatches per update. The training loop is
-small-scale self-play iteration (大規模化は後続Issueの範囲外):
+an entropy bonus, over K epochs of minibatches per update. The training loop
+(scaled up by SOT-1695: multi-deck rotation, RuleAgent sparring mix,
+per-iteration evaluation with a best-iteration promotion gate and stagnation
+early-stop):
 
-1. play ``--games-per-iter`` mirror matches with the *current* policy through
-   :func:`eval.selfplay.run_selfplay` (each iteration's records are kept as a
-   JSONL under ``--data-dir`` — the same audited pipeline/schema as SOT-1688);
+1. play ``--games-per-iter`` matches with the *current* policy through
+   :func:`eval.selfplay.run_selfplay` — mirror games (optionally rotating the
+   ``--deck-dir`` decks) plus a ``--sparring-frac`` share vs the RuleAgent
+   baseline (each iteration's records are kept as a JSONL under ``--data-dir``
+   — the same audited pipeline/schema as SOT-1688);
 2. rebuild trajectories per ``(game, player)``; the reward is 0 everywhere and
    the terminal ±1/0 on a trajectory's last decision;
 3. recompute values and the acting policy's log-probs from the stored features
@@ -404,9 +408,25 @@ def ppo_update(
 # --------------------------------------------------------------------------- #
 # The self-play training loop
 # --------------------------------------------------------------------------- #
-def _collect_selfplay(params: dict, games: int, base_seed: int, out_path: str) -> dict:
-    """One iteration of mirror self-play with the current weights (needs the engine)."""
-    from agents import PPOAgent
+def _collect_selfplay(
+    params: dict,
+    games: int,
+    base_seed: int,
+    out_path: str,
+    *,
+    decks: Optional[list] = None,
+    sparring_frac: float = 0.0,
+) -> dict:
+    """One iteration of self-play with the current weights (needs the engine).
+
+    SOT-1695 opponent mix: ``sparring_frac`` of the games are played vs the
+    RuleAgent baseline (kept in ``eval/`` as the sparring partner) instead of
+    the current-policy mirror — the rule side's records train as
+    advantage-weighted imitation (π_old recomputed under the current weights,
+    exactly like ``--bootstrap-data``), the ppo side's stay on-policy. ``decks``
+    (from :func:`eval.selfplay.load_deck_dir`) rotates mirror decks per game.
+    """
+    from agents import PPOAgent, RuleAgent
     from eval.selfplay import run_selfplay
 
     policy = params_to_policy(params)
@@ -414,9 +434,76 @@ def _collect_selfplay(params: dict, games: int, base_seed: int, out_path: str) -
     def make(seed: int) -> "PPOAgent":
         return PPOAgent(seed=seed, policy=policy)
 
-    return run_selfplay(
-        games, out_path, agents=(("ppo", make), ("ppo", make)), base_seed=base_seed
-    )
+    sparring = int(round(games * sparring_frac))
+    mirror = games - sparring
+    summaries = []
+    if mirror > 0:
+        summaries.append(run_selfplay(
+            mirror, out_path, agents=(("ppo", make), ("ppo", make)),
+            decks=decks, base_seed=base_seed,
+        ))
+    if sparring > 0:
+        summaries.append(run_selfplay(
+            sparring, out_path,
+            agents=(("ppo", make), ("rule", lambda seed: RuleAgent(seed=seed))),
+            decks=decks, base_seed=base_seed + 2 * mirror,
+        ))
+
+    combined = {
+        "games": sum(s["games"] for s in summaries),
+        "decisions": sum(s["decisions"] for s in summaries),
+        "faults": sum(s["faults"] for s in summaries),
+        "invalid_records": sum(s["invalid_records"] for s in summaries),
+        "draws": sum(s["draws"] for s in summaries),
+        "undecided": sum(s["undecided"] for s in summaries),
+        "wins": {},
+        "mirror_games": mirror,
+        "sparring_games": sparring,
+    }
+    for s in summaries:
+        for label, w in s["wins"].items():
+            combined["wins"][label] = combined["wins"].get(label, 0) + w
+    return combined
+
+
+def _evaluate(params: dict, n: int, seed: int) -> dict:
+    """In-memory paired arena of the current weights vs RuleAgent / RandomAgent.
+
+    The per-iteration evaluation log (SOT-1695): PPOAgent carrying the live
+    params, ``n`` side-swapped matches per opponent on the champion deck,
+    nothing written to disk. Returns ``{"vs_rule": {...}, "vs_random": {...}}``
+    with win rate + Wilson 95% CI + faults per opponent.
+    """
+    from agents import PPOAgent, RandomAgent, RuleAgent
+    from eval.arena import _load_deck, run_arena
+    from eval.trace import RecordLevel
+
+    policy = params_to_policy(params)
+    deck = _load_deck("deck.csv")
+    out = {}
+    for key, make_b in (("vs_rule", lambda s: RuleAgent(seed=s)),
+                        ("vs_random", lambda s: RandomAgent(seed=s))):
+        report = run_arena(
+            lambda s: PPOAgent(seed=s, policy=policy),
+            make_b,
+            deck0=deck,
+            n_matches=n,
+            side_swap=True,
+            agent_seed=seed,
+            label_a="ppo",
+            label_b=key,
+            record_traces=False,
+            trace_level=RecordLevel.RESULT,
+            write_outputs=False,
+        )
+        wr = report.win_rates
+        out[key] = {
+            "n": report.totals["n"],
+            "win_rate": wr["a_win_rate"],
+            "ci95": list(wr["a_win_rate_ci95"]),
+            "faults": report.safety["a_faults"],
+        }
+    return out
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -426,7 +513,19 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--iters", type=int, default=6,
                         help="self-play PPO iterations (0 = offline bootstrap only)")
     parser.add_argument("--games-per-iter", type=int, default=32,
-                        help="mirror self-play matches per iteration")
+                        help="self-play matches per iteration")
+    parser.add_argument("--deck-dir", default=None,
+                        help="rotate mirror decks over every *.csv here (SOT-1695, "
+                             "e.g. decks/initial); default: deck.csv only")
+    parser.add_argument("--sparring-frac", type=float, default=0.0,
+                        help="fraction of each iteration's games played vs the "
+                             "RuleAgent sparring baseline instead of the mirror")
+    parser.add_argument("--eval-games", type=int, default=0,
+                        help="per-iteration evaluation matches vs RuleAgent and vs "
+                             "Random (0 = no eval, keep every iteration's weights)")
+    parser.add_argument("--patience", type=int, default=0,
+                        help="stop after this many iterations without a new best "
+                             "vs-rule eval win rate (0 = never; needs --eval-games)")
     parser.add_argument("--bootstrap-data", action="append", default=[],
                         help="existing record JSONL(s) for warm-start updates (repeatable)")
     parser.add_argument("--bootstrap-passes", type=int, default=3,
@@ -484,30 +583,86 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.bootstrap_data:
         update_from(args.bootstrap_data, "bootstrap", passes=args.bootstrap_passes)
 
+    decks = None
+    if args.deck_dir:
+        from eval.selfplay import load_deck_dir
+
+        decks = load_deck_dir(args.deck_dir)
+
+    # Promotion gate (SOT-1695): with per-iteration eval on, the *best* eval
+    # iteration's snapshot ships, not the last — ranked by vs-rule win rate,
+    # tie-broken by vs-random. The pre-iteration weights (bootstrap output,
+    # iteration -1) compete too, so an eval-degrading run cannot ship a
+    # regression.
+    eval_history: list[dict] = []
+    best: Optional[dict] = None
+
+    def evaluate_and_track(iteration: int) -> None:
+        nonlocal best
+        if args.eval_games <= 0:
+            return
+        scores = _evaluate(params, args.eval_games, args.seed + 77_000 + 1000 * (iteration + 1))
+        entry = {"phase": "eval", "iter": iteration, **scores}
+        eval_history.append(entry)
+        print(json.dumps(entry, ensure_ascii=False))
+        key = (scores["vs_rule"]["win_rate"], scores["vs_random"]["win_rate"])
+        if best is None or key > best["key"]:
+            best = {
+                "key": key,
+                "iter": iteration,
+                "params": {k: np.array(v, copy=True) for k, v in params.items()},
+                "scores": scores,
+            }
+
+    evaluate_and_track(-1)
+
+    stopped_early = None
     for it in range(args.iters):
         out_jsonl = os.path.join(args.data_dir, f"iter_{it:03d}.jsonl")
         os.makedirs(args.data_dir, exist_ok=True)
         if os.path.exists(out_jsonl):  # run_selfplay appends; keep iterations clean
             os.remove(out_jsonl)
-        summary = _collect_selfplay(params, args.games_per_iter, args.seed + 10_000 * (it + 1), out_jsonl)
+        summary = _collect_selfplay(
+            params, args.games_per_iter, args.seed + 10_000 * (it + 1), out_jsonl,
+            decks=decks, sparring_frac=args.sparring_frac,
+        )
         print(json.dumps({"phase": "selfplay", "iter": it, **{
             k: summary[k] for k in ("games", "decisions", "faults", "invalid_records",
-                                    "wins", "draws", "undecided")
+                                    "wins", "draws", "undecided",
+                                    "mirror_games", "sparring_games")
         }}, ensure_ascii=False))
         if summary["faults"] or summary["invalid_records"]:
             print(f"iteration {it}: faults/invalid records present — aborting")
             return 1
         update_from([out_jsonl], f"iter_{it:03d}")
-        save_policy(params, args.out, meta=_meta(args, it + 1, history))
+        evaluate_and_track(it)
+        if best is not None and args.patience > 0 and it - best["iter"] >= args.patience:
+            stopped_early = {"iter": it, "best_iter": best["iter"], "patience": args.patience}
+            print(json.dumps({"phase": "early_stop", **stopped_early}, ensure_ascii=False))
+            break
+        save_policy(
+            best["params"] if best is not None else params, args.out,
+            meta=_meta(args, it + 1, history, eval_history, best, stopped_early, decks),
+        )
 
-    save_policy(params, args.out, meta=_meta(args, args.iters, history))
+    final_params = best["params"] if best is not None else params
+    save_policy(final_params, args.out,
+                meta=_meta(args, args.iters, history, eval_history, best, stopped_early, decks))
     print(f"wrote policy -> {args.out}")
     return 0
 
 
-def _meta(args: argparse.Namespace, iters_done: int, history: list[dict]) -> dict:
-    return {
-        "issue": "SOT-1689",
+def _meta(
+    args: argparse.Namespace,
+    iters_done: int,
+    history: list[dict],
+    eval_history: Optional[list[dict]] = None,
+    best: Optional[dict] = None,
+    stopped_early: Optional[dict] = None,
+    decks: Optional[list] = None,
+) -> dict:
+    meta = {
+        "issue": "SOT-1695",
         "iters_done": iters_done,
         "games_per_iter": args.games_per_iter,
         "bootstrap_data": args.bootstrap_data,
@@ -520,9 +675,23 @@ def _meta(args: argparse.Namespace, iters_done: int, history: list[dict]) -> dic
         "entropy_coef": args.entropy_coef,
         "seed": args.seed,
         "updates": len(history),
+        "records_trained": sum(h.get("records", 0) for h in history),
         "last_losses": {k: v for k, v in (history[-1] if history else {}).items()
                         if k in ("policy", "value", "entropy", "clip_frac")},
+        "deck_dir": args.deck_dir,
+        "n_decks": len(decks) if decks else 1,
+        "sparring_frac": args.sparring_frac,
+        "eval_games": args.eval_games,
+        "patience": args.patience,
     }
+    if eval_history:
+        meta["eval_history"] = eval_history
+    if best is not None:
+        meta["best_iter"] = best["iter"]
+        meta["best_eval"] = best["scores"]
+    if stopped_early is not None:
+        meta["stopped_early"] = stopped_early
+    return meta
 
 
 if __name__ == "__main__":

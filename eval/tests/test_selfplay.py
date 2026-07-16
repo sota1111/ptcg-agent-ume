@@ -27,6 +27,8 @@ from eval.selfplay import (  # noqa: E402
     RECORD_FIELDS,
     SCHEMA,
     _main,
+    load_deck,
+    load_deck_dir,
     run_selfplay,
     validate_record,
 )
@@ -138,6 +140,43 @@ def test_decision_indices_are_dense_per_trajectory(selfplay_run):
         by_traj.setdefault((r["game"], r["player"]), []).append(r["decision"])
     for indices in by_traj.values():
         assert sorted(indices) == list(range(len(indices)))
+
+
+# --------------------------------------------------------------------------- #
+# Deck rotation (SOT-1695)
+# --------------------------------------------------------------------------- #
+def test_load_deck_dir_reads_sorted_csv_decks():
+    decks = load_deck_dir("decks/initial")
+    assert len(decks) == 25
+    assert [name for name, _ in decks] == sorted(name for name, _ in decks)
+    assert all(len(deck) == 60 for _, deck in decks)
+
+
+def test_deck_rotation_mirrors_and_stamps_deck_field(tmp_path):
+    decks = load_deck_dir("decks/initial")[:2]
+    out = tmp_path / "rotation.jsonl"
+    summary = run_selfplay(
+        4, str(out), agents=("rule", "rule"), decks=decks, base_seed=11,
+    )
+    assert summary["faults"] == 0 and summary["invalid_records"] == 0
+    assert summary["decks"] == [name for name, _ in decks]
+    assert summary["per_deck"] == {
+        decks[0][0]: {"games": 2, "faults": 0},
+        decks[1][0]: {"games": 2, "faults": 0},
+    }
+    records = [json.loads(line) for line in out.read_text().splitlines() if line.strip()]
+    assert records and all(validate_record(r) == [] for r in records)
+    # Game g mirrors decks[g % len(decks)] and every record carries its name.
+    for r in records:
+        assert r["deck"] == decks[r["game"] % 2][0]
+
+
+def test_deck_rotation_is_exclusive_with_explicit_decks(tmp_path):
+    decks = [("deck.csv", load_deck("deck.csv"))]
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        run_selfplay(
+            1, str(tmp_path / "x.jsonl"), decks=decks, deck0=decks[0][1],
+        )
 
 
 # --------------------------------------------------------------------------- #

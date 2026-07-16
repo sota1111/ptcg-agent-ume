@@ -59,6 +59,7 @@ __all__ = [
     "validate_record",
     "run_selfplay",
     "load_deck",
+    "load_deck_dir",
 ]
 
 #: Schema tag stamped into every record (bump on layout change).
@@ -272,6 +273,19 @@ def load_deck(path: str) -> list[int]:
         return [int(x) for x in fh.read().split("\n") if x.strip()][:60]
 
 
+def load_deck_dir(deck_dir: str) -> list[tuple[str, list[int]]]:
+    """Load every ``*.csv`` deck in a directory as sorted ``(name, deck)`` pairs.
+
+    The rotation pool for multi-deck self-play (SOT-1695) — e.g. the 25
+    tournament decks under ``decks/initial/``. Sorted by filename so the
+    game→deck assignment is stable across runs.
+    """
+    names = sorted(f for f in os.listdir(deck_dir) if f.endswith(".csv"))
+    if not names:
+        raise ValueError(f"no *.csv decks found in {deck_dir!r}")
+    return [(name, load_deck(os.path.join(deck_dir, name))) for name in names]
+
+
 def run_selfplay(
     games: int,
     out_path: str,
@@ -279,6 +293,7 @@ def run_selfplay(
     agents: tuple = ("rule", "rule"),  # each side: an AGENT_KINDS str or (label, factory)
     deck0: Optional[list[int]] = None,
     deck1: Optional[list[int]] = None,
+    decks: Optional[list[tuple[str, list[int]]]] = None,
     base_seed: int = 0,
     max_steps: int = 100_000,
     validate: bool = True,
@@ -293,6 +308,14 @@ def run_selfplay(
          "wins": {"<label>": int}, "draws": int, "undecided": int,
          "feature_dim": FEATURE_DIM, "out_path": ...}
 
+    Deck rotation (SOT-1695): pass ``decks`` — ``(name, deck)`` pairs, e.g. from
+    :func:`load_deck_dir` — and game ``g`` is a **mirror** of ``decks[g % len]``
+    (both seats play the same deck, so records stay opponent-symmetric while the
+    corpus covers every archetype). Mutually exclusive with ``deck0``/``deck1``.
+    Rotation adds a ``deck`` name field to each record (an *extra* field — the
+    ``ume-selfplay-v1`` required-field contract is unchanged) and a ``per_deck``
+    ``{name: {"games": n, "faults": n}}`` tally to the summary.
+
     A fault (illegal move / timeout / agent exception — see
     :class:`eval.environment.EndReason`) is counted, never raised; the SafeAgent
     families used here are expected to keep this at 0.
@@ -301,12 +324,17 @@ def run_selfplay(
 
     if games <= 0:
         raise ValueError("games must be positive")
+    if decks is not None and (deck0 is not None or deck1 is not None):
+        raise ValueError("decks (rotation) and deck0/deck1 are mutually exclusive")
+    if decks is not None and not decks:
+        raise ValueError("decks rotation pool must be non-empty")
     kind_a, factory_a = _resolve_agent_spec(agents[0])
     kind_b, factory_b = _resolve_agent_spec(agents[1])
-    if deck0 is None:
-        deck0 = load_deck("deck.csv")
-    if deck1 is None:
-        deck1 = deck0
+    if decks is None:
+        if deck0 is None:
+            deck0 = load_deck("deck.csv")
+        if deck1 is None:
+            deck1 = deck0
 
     out_dir = os.path.dirname(out_path)
     if out_dir:
@@ -318,9 +346,15 @@ def run_selfplay(
     draws = 0
     undecided = 0
     wins: dict[str, int] = {kind_a: 0, kind_b: 0}
+    per_deck: dict[str, dict[str, int]] = {}
 
     with open(out_path, "a", encoding="utf-8") as fh:
         for game in range(games):
+            if decks is not None:
+                deck_name, rotated = decks[game % len(decks)]
+                deck0 = deck1 = rotated
+            else:
+                deck_name = None
             # Alternate seats each game (paired seating, as in eval.arena).
             swap = game % 2 == 1
             seat_kinds = (kind_b, kind_a) if swap else (kind_a, kind_b)
@@ -340,9 +374,15 @@ def run_selfplay(
                 wins[seat_kinds[result.winner]] = wins.get(seat_kinds[result.winner], 0) + 1
             else:
                 undecided += 1
+            if deck_name is not None:
+                tally = per_deck.setdefault(deck_name, {"games": 0, "faults": 0})
+                tally["games"] += 1
+                tally["faults"] += int(result.is_fault)
 
             for recorder in recorders:
                 for record in _finalize(recorder, game, result):
+                    if deck_name is not None:
+                        record["deck"] = deck_name
                     if validate:
                         errors = validate_record(record)
                         if errors:
@@ -353,7 +393,7 @@ def run_selfplay(
                     decisions += 1
             fh.flush()
 
-    return {
+    summary = {
         "games": games,
         "decisions": decisions,
         "faults": faults,
@@ -366,6 +406,10 @@ def run_selfplay(
         "agents": [kind_a, kind_b],
         "out_path": out_path,
     }
+    if decks is not None:
+        summary["decks"] = [name for name, _ in decks]
+        summary["per_deck"] = per_deck
+    return summary
 
 
 def _main(argv: Optional[list[str]] = None) -> int:
@@ -381,6 +425,9 @@ def _main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--deck0", default="deck.csv", help="player 0 deck csv")
     parser.add_argument("--deck1", default=None,
                         help="player 1 deck csv (default: same as --deck0)")
+    parser.add_argument("--deck-dir", default=None,
+                        help="rotate mirror decks over every *.csv in this directory "
+                             "(e.g. decks/initial); overrides --deck0/--deck1")
     parser.add_argument("--seed", type=int, default=0, help="base agent seed")
     parser.add_argument("--max-steps", type=int, default=100_000,
                         help="per-match selection-step safety cap")
@@ -394,8 +441,9 @@ def _main(argv: Optional[list[str]] = None) -> int:
         args.games,
         args.out,
         agents=kinds,  # type: ignore[arg-type]
-        deck0=load_deck(args.deck0),
-        deck1=load_deck(args.deck1) if args.deck1 else None,
+        deck0=None if args.deck_dir else load_deck(args.deck0),
+        deck1=load_deck(args.deck1) if args.deck1 and not args.deck_dir else None,
+        decks=load_deck_dir(args.deck_dir) if args.deck_dir else None,
         base_seed=args.seed,
         max_steps=args.max_steps,
     )
