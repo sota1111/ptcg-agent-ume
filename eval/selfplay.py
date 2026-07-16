@@ -185,6 +185,47 @@ def validate_record(record: dict) -> list[str]:
     return errors
 
 
+#: cabt RESULT reason codes (engine reason=<code> in MatchResult.detail):
+#: 1 no prizes (prize-out), 2 empty deck (deck-out), 3 no active, 4 card effect.
+_DECKOUT_REASON = 2
+_NOACTIVE_REASON = 3
+
+
+def _prize_counts(obs: dict) -> tuple[int, int]:
+    """``(own_remaining, opp_remaining)`` prize cards from the deciding player's view.
+
+    Mirrors :func:`agents.features.featurize`'s perspective (``current.yourIndex``
+    is "me"). Missing/malformed state falls back to the full 6 prizes so a record
+    is always self-contained. Used only for the SOT-1699 reward shaping.
+    """
+    current = obs.get("current") if isinstance(obs.get("current"), dict) else {}
+    me = current.get("yourIndex")
+    me = me if me in (0, 1) else 0
+    players = current.get("players") if isinstance(current.get("players"), list) else []
+
+    def remaining(idx: int) -> int:
+        player = players[idx] if 0 <= idx < len(players) else None
+        prize = player.get("prize") if isinstance(player, dict) else None
+        return len(prize) if isinstance(prize, list) else 6
+
+    return remaining(me), remaining(1 - me)
+
+
+def _engine_reason_code(result) -> Optional[int]:
+    """Parse the ``engine reason=<code>`` note :class:`MatchResult` carries in
+    ``detail`` (see :meth:`eval.environment.Environment._result_reason_code`).
+
+    Returns the int code (1..4) or ``None`` when absent (e.g. fault results the
+    match runner produces, whose detail is not the engine RESULT note).
+    """
+    detail = getattr(result, "detail", None)
+    if isinstance(detail, str) and "engine reason=" in detail:
+        token = detail.rsplit("engine reason=", 1)[1].strip()
+        if token.isdigit():
+            return int(token)
+    return None
+
+
 class _RecordingAgent:
     """Wraps an agent to capture one pending record per real decision.
 
@@ -208,6 +249,7 @@ class _RecordingAgent:
         options = select.get("option") if isinstance(select.get("option"), list) else []
         if options:
             act_list = [int(i) for i in action] if isinstance(action, list) else []
+            own_prizes, opp_prizes = _prize_counts(obs)
             self.pending.append({
                 "schema": SCHEMA,
                 "feature_version": FEATURE_VERSION,
@@ -221,6 +263,11 @@ class _RecordingAgent:
                 "max_count": int(select.get("maxCount") or 0),
                 "select_type": int(select.get("type") or 0),
                 "select_context": int(select.get("context") or 0),
+                # Reward-shaping signal (SOT-1699): prizes *remaining* at this
+                # decision, from the deciding player's perspective. Extra fields —
+                # the ume-selfplay-v1 required-field contract is unchanged.
+                "own_prizes": own_prizes,
+                "opp_prizes": opp_prizes,
             })
         return action
 
@@ -251,6 +298,7 @@ def _finalize(recorder: _RecordingAgent, game: int, result) -> list[dict]:
     else:
         outcome, reward = "undecided", 0.0
 
+    reason_code = _engine_reason_code(result)
     records = []
     for t, rec in enumerate(recorder.pending):
         rec = dict(rec)
@@ -262,6 +310,8 @@ def _finalize(recorder: _RecordingAgent, game: int, result) -> list[dict]:
             "winner": result.winner,
             "reason": result.reason.value,
             "steps": result.steps,
+            # Granular engine end-reason (SOT-1699 loss shaping); extra field.
+            "end_reason_code": reason_code,
         })
         records.append(rec)
     return records
@@ -297,6 +347,7 @@ def run_selfplay(
     base_seed: int = 0,
     max_steps: int = 100_000,
     validate: bool = True,
+    record_labels: Optional[set] = None,
 ) -> dict:
     """Play ``games`` self-play matches and append decision records to ``out_path``.
 
@@ -319,6 +370,12 @@ def run_selfplay(
     A fault (illegal move / timeout / agent exception — see
     :class:`eval.environment.EndReason`) is counted, never raised; the SafeAgent
     families used here are expected to keep this at 0.
+
+    League play (SOT-1699): ``record_labels`` restricts *which seats' records are
+    written* to the label set (e.g. ``{"ppo"}`` keeps only the learner's
+    on-policy records when the opponent is a past-policy snapshot). ``None`` (the
+    default) writes both seats, unchanged. Game outcomes/faults are still counted
+    for every game regardless of the filter.
     """
     from eval.match import play_match
 
@@ -380,6 +437,8 @@ def run_selfplay(
                 tally["faults"] += int(result.is_fault)
 
             for recorder in recorders:
+                if record_labels is not None and recorder._label not in record_labels:
+                    continue
                 for record in _finalize(recorder, game, result):
                     if deck_name is not None:
                         record["deck"] = deck_name

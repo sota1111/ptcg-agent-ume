@@ -16,7 +16,11 @@ Vanilla PPO: clipped surrogate objective + GAE(γ, λ), Adam, a value-MSE head a
 an entropy bonus, over K epochs of minibatches per update. The training loop
 (scaled up by SOT-1695: multi-deck rotation, RuleAgent sparring mix,
 per-iteration evaluation with a best-iteration promotion gate and stagnation
-early-stop):
+early-stop; SOT-1699 adds **opponent-pool "league" self-play** — sparring vs a
+bounded FIFO of past-policy snapshots, learner-side records only — and bounded
+**reward shaping** — potential-based prize-differential + a deck-out/no-active
+loss penalty, both applied at training time so the stored records stay
+schema-valid ±1/0):
 
 1. play ``--games-per-iter`` matches with the *current* policy through
    :func:`eval.selfplay.run_selfplay` — mirror games (optionally rotating the
@@ -54,6 +58,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import sys
 from typing import Optional
 
@@ -249,12 +254,70 @@ def compute_gae(
     return adv, adv + values
 
 
-def build_batch(records: list[dict], params: dict, gamma: float, lam: float) -> dict:
+#: cabt end-reason codes for self-inflicted losses (SOT-1699 loss shaping):
+#: 2 empty deck (deck-out), 3 no active. Mirrors eval.selfplay._DECKOUT_REASON.
+_SELF_LOSS_REASONS = (2, 3)
+
+
+def _shaped_rewards(
+    records: list[dict],
+    indices: list[int],
+    gamma: float,
+    prize_shaping: float,
+    loss_shaping: float,
+) -> np.ndarray:
+    """Terminal ±1/0 reward on one trajectory + optional SOT-1699 shaping.
+
+    * **Prize shaping** (potential-based, policy-invariant): with potential
+      ``φ_t = prize_shaping · (opp_remaining − own_remaining) / 6`` (higher when
+      the acting player has taken more prizes), each step gets
+      ``F_t = γ·φ_{t+1} − φ_t`` (terminal ``φ = 0``). It telescopes to a bounded
+      tail, so the terminal ±1 keeps dominating — it only sharpens credit
+      assignment toward prize-taking moves. Records lacking the prize fields
+      (e.g. old bootstrap data) contribute ``φ = 0`` and are unaffected.
+    * **Loss shaping**: a small extra negative on a *loss* ended by deck-out /
+      no-active (``end_reason_code`` in :data:`_SELF_LOSS_REASONS`) — nudging the
+      policy away from those self-inflicted defeats.
+    """
+    n = len(indices)
+    rewards = np.zeros(n)
+    rewards[-1] = float(records[indices[-1]]["reward"])
+
+    if prize_shaping:
+        phi = np.zeros(n)
+        for k, i in enumerate(indices):
+            own, opp = records[i].get("own_prizes"), records[i].get("opp_prizes")
+            if isinstance(own, (int, float)) and isinstance(opp, (int, float)) \
+                    and not isinstance(own, bool) and not isinstance(opp, bool):
+                phi[k] = prize_shaping * (float(opp) - float(own)) / 6.0
+        for t in range(n):
+            phi_next = phi[t + 1] if t + 1 < n else 0.0
+            rewards[t] += gamma * phi_next - phi[t]
+
+    if loss_shaping and rewards[-1] < 0:
+        if records[indices[-1]].get("end_reason_code") in _SELF_LOSS_REASONS:
+            rewards[-1] -= loss_shaping
+    return rewards
+
+
+def build_batch(
+    records: list[dict],
+    params: dict,
+    gamma: float,
+    lam: float,
+    *,
+    prize_shaping: float = 0.0,
+    loss_shaping: float = 0.0,
+) -> dict:
     """Trajectories -> flat arrays: features, actions, masks, advantages, returns.
 
     Values (for GAE) and the acting policy's log-probs (π_old) are recomputed
     from the stored features under ``params`` — the snapshot that generated the
     records — so the record schema needs no logprob/value fields.
+
+    ``prize_shaping`` / ``loss_shaping`` (SOT-1699) add the bounded reward
+    shaping described in :func:`_shaped_rewards`; both default to 0.0 (the exact
+    terminal-only reward of SOT-1689/1695).
     """
     x = np.asarray([r["features"] for r in records], dtype=float)
     actions = np.asarray([r["action_index"] for r in records], dtype=int)
@@ -273,8 +336,7 @@ def build_batch(records: list[dict], params: dict, gamma: float, lam: float) -> 
     returns = np.zeros(len(records))
     for indices in trajectories.values():
         indices.sort(key=lambda i: records[i]["decision"])
-        rewards = np.zeros(len(indices))
-        rewards[-1] = float(records[indices[-1]]["reward"])
+        rewards = _shaped_rewards(records, indices, gamma, prize_shaping, loss_shaping)
         adv, ret = compute_gae(rewards, values[indices], gamma, lam)
         advantages[indices] = adv
         returns[indices] = ret
@@ -416,15 +478,27 @@ def _collect_selfplay(
     *,
     decks: Optional[list] = None,
     sparring_frac: float = 0.0,
+    league_frac: float = 0.0,
+    snapshots: Optional[list[dict]] = None,
+    rng: Optional[random.Random] = None,
 ) -> dict:
     """One iteration of self-play with the current weights (needs the engine).
 
-    SOT-1695 opponent mix: ``sparring_frac`` of the games are played vs the
-    RuleAgent baseline (kept in ``eval/`` as the sparring partner) instead of
-    the current-policy mirror — the rule side's records train as
-    advantage-weighted imitation (π_old recomputed under the current weights,
-    exactly like ``--bootstrap-data``), the ppo side's stay on-policy. ``decks``
-    (from :func:`eval.selfplay.load_deck_dir`) rotates mirror decks per game.
+    Opponent mix per iteration (fractions of ``games``):
+
+    * **mirror** — current policy vs itself (on-policy, both seats train);
+    * **sparring** (``sparring_frac``, SOT-1695) — vs the RuleAgent baseline; the
+      rule side's records train as advantage-weighted imitation (π_old recomputed
+      under the current weights, exactly like ``--bootstrap-data``);
+    * **league** (``league_frac``, SOT-1699) — the learner (current policy) vs an
+      opponent sampled from ``snapshots`` (a pool of *past* policy dicts). Only
+      the learner's on-policy records are kept (``record_labels={"ppo"}``) — we
+      never imitate an old, weaker policy. This trains exploit-resistance against
+      a distribution of past selves. When the pool is empty (iteration 0) league
+      games fall back to the mirror.
+
+    ``decks`` (from :func:`eval.selfplay.load_deck_dir`) rotates mirror decks per
+    game; league games rotate the same pool one deck at a time.
     """
     from agents import PPOAgent, RuleAgent
     from eval.selfplay import run_selfplay
@@ -434,8 +508,14 @@ def _collect_selfplay(
     def make(seed: int) -> "PPOAgent":
         return PPOAgent(seed=seed, policy=policy)
 
+    snapshots = list(snapshots or [])
+    league = int(round(games * league_frac)) if snapshots else 0
     sparring = int(round(games * sparring_frac))
-    mirror = games - sparring
+    league = min(league, max(0, games - sparring))
+    mirror = games - sparring - league
+    if rng is None:
+        rng = random.Random(base_seed)
+
     summaries = []
     if mirror > 0:
         summaries.append(run_selfplay(
@@ -448,6 +528,23 @@ def _collect_selfplay(
             agents=(("ppo", make), ("rule", lambda seed: RuleAgent(seed=seed))),
             decks=decks, base_seed=base_seed + 2 * mirror,
         ))
+    for g in range(league):
+        snap = snapshots[rng.randrange(len(snapshots))]
+
+        def make_opp(seed: int, snap=snap) -> "PPOAgent":
+            return PPOAgent(seed=seed, policy=snap)
+
+        # Alternate which seat the on-policy learner takes so its records cover
+        # both seats across the league block.
+        learner = ("ppo", make)
+        opponent = ("league", make_opp)
+        agents = (learner, opponent) if g % 2 == 0 else (opponent, learner)
+        g_decks = [decks[g % len(decks)]] if decks else None
+        summaries.append(run_selfplay(
+            1, out_path, agents=agents, decks=g_decks,
+            base_seed=base_seed + 2 * (mirror + sparring + g),
+            record_labels={"ppo"},
+        ))
 
     combined = {
         "games": sum(s["games"] for s in summaries),
@@ -459,6 +556,7 @@ def _collect_selfplay(
         "wins": {},
         "mirror_games": mirror,
         "sparring_games": sparring,
+        "league_games": league,
     }
     for s in summaries:
         for label, w in s["wins"].items():
@@ -520,6 +618,19 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--sparring-frac", type=float, default=0.0,
                         help="fraction of each iteration's games played vs the "
                              "RuleAgent sparring baseline instead of the mirror")
+    parser.add_argument("--league-frac", type=float, default=0.0,
+                        help="fraction of each iteration's games played by the "
+                             "learner vs a sampled past-policy snapshot (SOT-1699 "
+                             "opponent-pool / league learning; 0 = off)")
+    parser.add_argument("--league-pool-size", type=int, default=5,
+                        help="max past-policy snapshots kept in the league pool "
+                             "(oldest dropped; needs --league-frac)")
+    parser.add_argument("--prize-shaping", type=float, default=0.0,
+                        help="coefficient of the potential-based prize-differential "
+                             "reward shaping (SOT-1699; 0 = terminal reward only)")
+    parser.add_argument("--loss-shaping", type=float, default=0.0,
+                        help="extra negative reward on a deck-out / no-active loss "
+                             "(SOT-1699; 0 = off)")
     parser.add_argument("--eval-games", type=int, default=0,
                         help="per-iteration evaluation matches vs RuleAgent and vs "
                              "Random (0 = no eval, keep every iteration's weights)")
@@ -570,7 +681,10 @@ def main(argv: Optional[list[str]] = None) -> int:
             print(f"{phase}: no trainable records in {paths} ({tally})")
             return
         for p in range(passes):
-            batch = build_batch(records, params, args.gamma, args.lam)
+            batch = build_batch(
+                records, params, args.gamma, args.lam,
+                prize_shaping=args.prize_shaping, loss_shaping=args.loss_shaping,
+            )
             losses = ppo_update(params, batch, adam, seed=args.seed + p, **hyper)
             entry = {
                 "phase": phase, "pass": p, "records": tally["kept"],
@@ -616,6 +730,18 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     evaluate_and_track(-1)
 
+    # League opponent pool (SOT-1699): a bounded FIFO of *past* policy snapshots
+    # the learner spars against. Grown after each iteration's update so the pool
+    # at iteration ``it`` holds the snapshots of iterations ``< it``.
+    league_pool: list[dict] = []
+    league_rng = random.Random(args.seed + 999)
+
+    def push_snapshot() -> None:
+        if args.league_frac > 0:
+            league_pool.append(params_to_policy(params))
+            if len(league_pool) > max(1, args.league_pool_size):
+                del league_pool[0]
+
     stopped_early = None
     for it in range(args.iters):
         out_jsonl = os.path.join(args.data_dir, f"iter_{it:03d}.jsonl")
@@ -625,16 +751,18 @@ def main(argv: Optional[list[str]] = None) -> int:
         summary = _collect_selfplay(
             params, args.games_per_iter, args.seed + 10_000 * (it + 1), out_jsonl,
             decks=decks, sparring_frac=args.sparring_frac,
+            league_frac=args.league_frac, snapshots=league_pool, rng=league_rng,
         )
         print(json.dumps({"phase": "selfplay", "iter": it, **{
             k: summary[k] for k in ("games", "decisions", "faults", "invalid_records",
                                     "wins", "draws", "undecided",
-                                    "mirror_games", "sparring_games")
+                                    "mirror_games", "sparring_games", "league_games")
         }}, ensure_ascii=False))
         if summary["faults"] or summary["invalid_records"]:
             print(f"iteration {it}: faults/invalid records present — aborting")
             return 1
         update_from([out_jsonl], f"iter_{it:03d}")
+        push_snapshot()  # add this iteration's weights to the league pool
         evaluate_and_track(it)
         if best is not None and args.patience > 0 and it - best["iter"] >= args.patience:
             stopped_early = {"iter": it, "best_iter": best["iter"], "patience": args.patience}
@@ -662,7 +790,7 @@ def _meta(
     decks: Optional[list] = None,
 ) -> dict:
     meta = {
-        "issue": "SOT-1695",
+        "issue": "SOT-1699",
         "iters_done": iters_done,
         "games_per_iter": args.games_per_iter,
         "bootstrap_data": args.bootstrap_data,
@@ -681,6 +809,10 @@ def _meta(
         "deck_dir": args.deck_dir,
         "n_decks": len(decks) if decks else 1,
         "sparring_frac": args.sparring_frac,
+        "league_frac": args.league_frac,
+        "league_pool_size": args.league_pool_size,
+        "prize_shaping": args.prize_shaping,
+        "loss_shaping": args.loss_shaping,
         "eval_games": args.eval_games,
         "patience": args.patience,
     }

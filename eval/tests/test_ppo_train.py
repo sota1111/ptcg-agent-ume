@@ -24,6 +24,7 @@ np = pytest.importorskip("numpy", reason="training-only dependency (requirements
 from agents.features import FEATURE_DIM, FEATURE_VERSION  # noqa: E402
 from agents.policy_net import forward, load_policy, validate_policy  # noqa: E402
 from train.ppo import (  # noqa: E402
+    _shaped_rewards,
     build_batch,
     compute_gae,
     forward_np,
@@ -115,6 +116,60 @@ def test_build_batch_groups_trajectories_and_normalises(tmp_path):
     assert len(batch["x"]) == 9
     assert abs(float(batch["advantages"].mean())) < 1e-9  # normalised
     assert np.isfinite(batch["old_logp"]).all()
+
+
+def test_shaping_off_is_terminal_only():
+    # No shaping args -> reward is 0 everywhere but the terminal ±1 (SOT-1689).
+    recs = [_record(0, d, reward=-1.0) for d in range(3)]
+    r = _shaped_rewards(recs, [0, 1, 2], gamma=0.99, prize_shaping=0.0, loss_shaping=0.0)
+    assert np.allclose(r, [0.0, 0.0, -1.0])
+
+
+def test_prize_shaping_is_potential_based_and_telescopes():
+    # A prize-taking win: own prizes 6->5->4, opp 6->6->5, coef 0.6, gamma 1.
+    recs = [
+        {**_record(0, 0, reward=1.0), "own_prizes": 6, "opp_prizes": 6},
+        {**_record(0, 1, reward=1.0), "own_prizes": 5, "opp_prizes": 6},
+        {**_record(0, 2, reward=1.0), "own_prizes": 4, "opp_prizes": 5},
+    ]
+    r = _shaped_rewards(recs, [0, 1, 2], gamma=1.0, prize_shaping=0.6, loss_shaping=0.0)
+    # phi = 0.6*(opp-own)/6 = [0, 0.1, 0.1]; F_t = phi_{t+1}-phi_t (terminal phi=0).
+    assert np.allclose(r, [0.1, 0.0, 0.9])
+    # Potential-based with phi_0=0 and gamma=1 preserves the total return.
+    assert math.isclose(float(r.sum()), 1.0, abs_tol=1e-9)
+
+
+def test_prize_shaping_ignored_without_prize_fields():
+    recs = [_record(0, d, reward=1.0) for d in range(3)]  # no own/opp_prizes
+    r = _shaped_rewards(recs, [0, 1, 2], gamma=0.99, prize_shaping=0.5, loss_shaping=0.0)
+    assert np.allclose(r, [0.0, 0.0, 1.0])
+
+
+def test_loss_shaping_only_penalizes_deckout_or_no_active_losses():
+    def traj(reward, code):
+        recs = [{**_record(0, d, reward=reward), "end_reason_code": code} for d in range(2)]
+        return _shaped_rewards(recs, [0, 1], gamma=0.99, prize_shaping=0.0, loss_shaping=0.3)
+
+    assert np.allclose(traj(-1.0, 2), [0.0, -1.3])   # deck-out loss penalised
+    assert np.allclose(traj(-1.0, 3), [0.0, -1.3])   # no-active loss penalised
+    assert np.allclose(traj(-1.0, 1), [0.0, -1.0])   # prize-out loss: no penalty
+    assert np.allclose(traj(1.0, 2), [0.0, 1.0])     # a *win* is never penalised
+
+
+def test_build_batch_accepts_shaping_and_stays_finite(tmp_path):
+    path = tmp_path / "records.jsonl"
+    records = [
+        {**_record(0, d, player=0, reward=1.0, seed=1, action_index=d % 3, n_options=4),
+         "own_prizes": 6 - d, "opp_prizes": 6, "end_reason_code": 1}
+        for d in range(4)
+    ]
+    _write_records(path, records)
+    kept, _ = load_records([str(path)])
+    params = init_params(hidden=8, seed=0)
+    batch = build_batch(kept, params, gamma=0.99, lam=0.95,
+                        prize_shaping=0.1, loss_shaping=0.1)
+    assert np.isfinite(batch["advantages"]).all()
+    assert np.isfinite(batch["returns"]).all()
 
 
 def test_offline_training_produces_valid_reloadable_artifact(tmp_path):

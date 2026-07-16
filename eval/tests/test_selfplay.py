@@ -26,7 +26,9 @@ from eval.selfplay import (  # noqa: E402
     AGENT_KINDS,
     RECORD_FIELDS,
     SCHEMA,
+    _engine_reason_code,
     _main,
+    _prize_counts,
     load_deck,
     load_deck_dir,
     run_selfplay,
@@ -177,6 +179,85 @@ def test_deck_rotation_is_exclusive_with_explicit_decks(tmp_path):
         run_selfplay(
             1, str(tmp_path / "x.jsonl"), decks=decks, deck0=decks[0][1],
         )
+
+
+# --------------------------------------------------------------------------- #
+# Reward-shaping signal capture (SOT-1699)
+# --------------------------------------------------------------------------- #
+def test_prize_counts_uses_deciding_player_perspective():
+    obs = {"current": {"yourIndex": 1, "players": [
+        {"prize": [0] * 4},   # seat 0 has 4 prizes left
+        {"prize": [0] * 2},   # seat 1 (me) has 2 prizes left
+    ]}}
+    assert _prize_counts(obs) == (2, 4)   # (own, opp) from seat 1's view
+
+
+def test_prize_counts_falls_back_to_six_when_absent():
+    assert _prize_counts({}) == (6, 6)
+    assert _prize_counts({"current": {"yourIndex": 0, "players": [{}, {}]}}) == (6, 6)
+
+
+class _FakeResult:
+    def __init__(self, detail):
+        self.detail = detail
+
+
+@pytest.mark.parametrize("detail, code", [
+    ("engine reason=2", 2),
+    ("engine reason=3", 3),
+    ("engine reason=None", None),
+    (None, None),
+    ("no code here", None),
+])
+def test_engine_reason_code_parses_detail(detail, code):
+    assert _engine_reason_code(_FakeResult(detail)) == code
+
+
+def test_selfplay_records_carry_prize_and_reason_fields(selfplay_run):
+    _, records = selfplay_run
+    for r in records:
+        assert isinstance(r["own_prizes"], int) and 0 <= r["own_prizes"] <= 6
+        assert isinstance(r["opp_prizes"], int) and 0 <= r["opp_prizes"] <= 6
+        assert r["end_reason_code"] is None or isinstance(r["end_reason_code"], int)
+    # A normal engine termination stamps one of the RESULT reason codes.
+    assert any(r["end_reason_code"] in (1, 2, 3, 4) for r in records)
+
+
+def test_record_labels_keeps_only_the_learner_side(tmp_path):
+    out = tmp_path / "league.jsonl"
+    summary = run_selfplay(
+        2, str(out), agents=("ppo", "rule"), base_seed=5, record_labels={"ppo"},
+    )
+    records = [json.loads(l) for l in out.read_text().splitlines() if l.strip()]
+    assert records, "the learner side must still be recorded"
+    assert {r["agent"] for r in records} == {"ppo"}   # opponent records filtered out
+    assert summary["faults"] == 0
+    assert all(validate_record(r) == [] for r in records)
+
+
+def test_collect_selfplay_league_records_only_the_learner(tmp_path):
+    """SOT-1699: league games spar the learner vs a past snapshot, learner-only."""
+    import random
+
+    pytest.importorskip("numpy", reason="train.ppo is numpy-only")
+    from train.ppo import _collect_selfplay, init_params, params_to_policy
+
+    params = init_params(hidden=8, seed=0)
+    snapshot = params_to_policy(init_params(hidden=8, seed=1))
+    out = tmp_path / "iter.jsonl"
+    summary = _collect_selfplay(
+        params, games=2, base_seed=0, out_path=str(out),
+        league_frac=1.0, snapshots=[snapshot], rng=random.Random(0),
+    )
+    assert summary["league_games"] == 2 and summary["mirror_games"] == 0
+    assert summary["faults"] == 0 and summary["invalid_records"] == 0
+    records = [json.loads(l) for l in out.read_text().splitlines() if l.strip()]
+    assert records and {r["agent"] for r in records} == {"ppo"}
+    # No pool -> league falls back to the mirror (both seats are the learner).
+    out2 = tmp_path / "iter2.jsonl"
+    s2 = _collect_selfplay(params, games=2, base_seed=0, out_path=str(out2),
+                           league_frac=1.0, snapshots=[])
+    assert s2["league_games"] == 0 and s2["mirror_games"] == 2
 
 
 # --------------------------------------------------------------------------- #
