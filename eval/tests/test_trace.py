@@ -26,6 +26,7 @@ from eval.trace import (
     Replay,
     Trace,
     build_decision,
+    build_result,
     check_compatibility,
     deck_hash,
     engine_hash,
@@ -218,7 +219,17 @@ def test_build_decision_omits_obs_below_full_obs():
                              thinking_time_ms=1.0, level=RecordLevel.FULL_OBS)
     assert "obs" not in at_logs
     assert at_full["obs"] is obs
+    assert at_logs["learning"]["actor"] == 0
+    assert at_logs["learning"]["chosen_action"] == [0]
     assert at_logs["select"] is obs["select"]
+
+
+def test_result_has_player_outcomes_and_rewards():
+    result = build_result(result=1, final_logs=[], first_player=0,
+                          final_turn=4, total_decisions=2, elapsed_ms=1.0)
+    assert result["learning"]["winner"] == 1
+    assert result["learning"]["outcome_by_player"] == ["loss", "win"]
+    assert result["learning"]["reward_by_player"] == [-1.0, 1.0]
 
 
 # --------------------------------------------------------------------------- #

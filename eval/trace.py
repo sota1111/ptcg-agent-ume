@@ -48,7 +48,28 @@ from typing import Any, Callable, Iterator, Optional, TextIO
 
 # Bump when the trace record shape changes (stamped into every trace's meta so a
 # reader can refuse / flag an incompatible trace).
-SCHEMA_VERSION = "1.0.0"
+SCHEMA_VERSION = "1.1.0"
+
+
+def _learning_state(current: dict) -> dict:
+    """Compact, stable state features useful to rule/PPO/CABT analysis."""
+    players = current.get("players") if isinstance(current.get("players"), list) else []
+    summaries = []
+    for player in players[:2]:
+        player = player if isinstance(player, dict) else {}
+        summaries.append({
+            "hand_count": len(player.get("hand") or []),
+            "bench_count": len(player.get("bench") or []),
+            "prize_count": len(player.get("prize") or []),
+            "deck_count": player.get("deckCount", player.get("deck_count")),
+            "active": player.get("active"),
+        })
+    return {
+        "turn": current.get("turn"),
+        "turn_action_count": current.get("turnActionCount"),
+        "first_player": current.get("firstPlayer"),
+        "players": summaries,
+    }
 
 
 class RecordLevel(IntEnum):
@@ -208,6 +229,12 @@ def build_decision(
         "thinking_time_ms": round(thinking_time_ms, 3),
         "search_begin_input": obs.get("search_begin_input"),
         "logs": obs.get("logs", []),          # events since the last decision
+        "learning": {
+            "actor": current.get("yourIndex"),
+            "legal_actions": (obs.get("select") or {}).get("option", []),
+            "chosen_action": choice,
+            "state": _learning_state(current),
+        },
     }
     if level >= RecordLevel.FULL_OBS:
         record["obs"] = obs
@@ -266,6 +293,20 @@ def build_result(
         "failure": failure,
         "start_error": start_error,
         "final_logs": final_logs,
+        "learning": {
+            "winner": winner,
+            "outcome_by_player": [
+                "draw" if winner is None and result == 2 else
+                "undecided" if winner is None else
+                ("win" if winner == player else "loss")
+                for player in (0, 1)
+            ],
+            "reward_by_player": [
+                0.0 if winner is None else (1.0 if winner == player else -1.0)
+                for player in (0, 1)
+            ],
+            "termination_reason": reason,
+        },
     }
 
 
