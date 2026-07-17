@@ -1,0 +1,70 @@
+{
+  "chunks": [
+    {
+      "seed": 170700,
+      "n": 100,
+      "final_wins": 59
+    },
+    {
+      "seed": 170800,
+      "n": 100,
+      "final_wins": 48
+    },
+    {
+      "seed": 170900,
+      "n": 100,
+      "final_wins": 52
+    },
+    {
+      "seed": 171000,
+      "n": 100,
+      "final_wins": 60
+    }
+  ],
+  "opponent": "rule",
+  "temperature": 0.15,
+  "n": 400,
+  "final_wins": 219,
+  "opponent_wins": 181,
+  "draws": 0,
+  "undecided": 0,
+  "final_win_rate": 0.5475,
+  "ci95_low": 0.49850112055362783,
+  "ci95_high": 0.5955952114846139,
+  "final_faults": 0,
+  "opponent_faults": 0,
+  "latency_final_max_ms": 619.9826789088547,
+  "latency_final_mean_ms_chunks": [
+    403.24565125294237,
+    412.57521658703763,
+    417.93945220583197,
+    428.80733656483227
+  ],
+  "per_move_timeout_s": 5.0,
+  "harness_stats": {
+    "decisions": 6275,
+    "candidates": 21898,
+    "invalid_candidates": 0,
+    "decided_by": {
+      "mcts": 478,
+      "policy_sample": 5767,
+      "rule_tiebreak": 30
+    }
+  },
+  "mcts_stats": {
+    "decisions": 6275,
+    "eligible": 5133,
+    "activations": 4489,
+    "activation_rate": 0.7153784860557769,
+    "searched": 4365,
+    "overrides": 478,
+    "failures": 124,
+    "determinizations_ok": 12925,
+    "determinizations_failed": 542,
+    "simulations": 2035580,
+    "search_ms_mean": 579.9480609966209,
+    "search_ms_max": 601.184074068442
+  },
+  "promote": false,
+  "passed": true
+}
