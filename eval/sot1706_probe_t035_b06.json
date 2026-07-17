@@ -1,0 +1,62 @@
+{
+  "policy": "/workspaces/ptcg-agent-ume/data/policy.json",
+  "opponent": "rule",
+  "n": 30,
+  "seed": 170635,
+  "time_limit_s": 0.6,
+  "temperature": 0.35,
+  "per_move_timeout_s": 5.0,
+  "final_wins": 16,
+  "opponent_wins": 14,
+  "draws": 0,
+  "undecided": 0,
+  "final_win_rate": 0.5333333333333333,
+  "ci95_low": 0.36142299619873297,
+  "ci95_high": 0.6976761109230025,
+  "final_faults": 0,
+  "opponent_faults": 0,
+  "final_fault_categories": {},
+  "latency_final": {
+    "n_decisions": 437,
+    "mean_ms": 416.90849949812485,
+    "p50_ms": 600.9071599692106,
+    "p95_ms": 601.3023894280195,
+    "p99_ms": 601.4245919045061,
+    "max_ms": 613.6077030096203
+  },
+  "latency_opponent": {
+    "n_decisions": 483,
+    "mean_ms": 0.09403176515075855,
+    "p50_ms": 0.08808798156678677,
+    "p95_ms": 0.15275401528924704,
+    "p99_ms": 0.19753324333578354,
+    "max_ms": 0.2844599075615406
+  },
+  "harness_stats": {
+    "decisions": 437,
+    "candidates": 1561,
+    "invalid_candidates": 0,
+    "decided_by": {
+      "mcts": 36,
+      "policy_sample": 397,
+      "rule_tiebreak": 4
+    }
+  },
+  "mcts_stats": {
+    "decisions": 437,
+    "eligible": 359,
+    "activations": 312,
+    "activation_rate": 0.7139588100686499,
+    "searched": 305,
+    "overrides": 36,
+    "failures": 7,
+    "determinizations_ok": 909,
+    "determinizations_failed": 27,
+    "simulations": 164646,
+    "search_ms_mean": 583.2338520394376,
+    "search_ms_max": 601.0799531359226
+  },
+  "run_dir": "eval/arena_runs/bench_final_vs_rule_n30_s170635",
+  "promote": false,
+  "passed": true
+}

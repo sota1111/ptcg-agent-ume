@@ -1,0 +1,11 @@
+{
+  "opponent": "rule",
+  "n": 100,
+  "losses": 50,
+  "loss_reasons": {
+    "no_active": 47,
+    "prize_out": 3
+  },
+  "faults": 0,
+  "run_dir": "eval/arena_runs/loss_profile_rule_n100_s170600"
+}
