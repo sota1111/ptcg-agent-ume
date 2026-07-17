@@ -59,7 +59,9 @@ OPPONENTS = {
 
 def run_bench(args: argparse.Namespace) -> dict:
     """One arena run of HarnessAgent (A) vs the chosen baseline (B); returns the result dict."""
-    probe = HarnessAgent(seed=0, policy_path=args.policy, mcts=False)
+    probe = HarnessAgent(
+        seed=0, policy_path=args.policy, temperature=args.temperature, mcts=False
+    )
     if not probe.policy_loaded:
         raise SystemExit(f"POLICY INVALID: {args.policy} did not load — train it first (train/ppo.py)")
 
@@ -68,7 +70,10 @@ def run_bench(args: argparse.Namespace) -> dict:
     built: list[HarnessAgent] = []
 
     def make_final(s: int) -> HarnessAgent:
-        a = HarnessAgent(seed=s, policy_path=args.policy, mcts=True, mcts_config=cfg)
+        a = HarnessAgent(
+            seed=s, policy_path=args.policy, temperature=args.temperature,
+            mcts=True, mcts_config=cfg,
+        )
         built.append(a)
         return a
 
@@ -101,6 +106,7 @@ def run_bench(args: argparse.Namespace) -> dict:
         "n": report.totals["n"],
         "seed": args.seed,
         "time_limit_s": cfg.time_limit_s,
+        "temperature": args.temperature,
         "per_move_timeout_s": args.per_move_timeout,
         "final_wins": report.totals["a_wins"],
         "opponent_wins": report.totals["b_wins"],
@@ -129,6 +135,11 @@ def aggregate(paths: list[str]) -> dict:
     opponents = {c.get("opponent", "rule") for c in chunks}
     if len(opponents) != 1:
         raise SystemExit(f"cannot aggregate chunks of different opponents: {sorted(opponents)}")
+    temperatures = {c.get("temperature", 1.0) for c in chunks}
+    if len(temperatures) != 1:
+        raise SystemExit(
+            f"cannot aggregate chunks of different temperatures: {sorted(temperatures)}"
+        )
     n = sum(c["n"] for c in chunks)
     wins = sum(c["final_wins"] for c in chunks)
     ci_low, ci_high = wilson_ci(wins, n)
@@ -151,6 +162,7 @@ def aggregate(paths: list[str]) -> dict:
     return {
         "chunks": [{"seed": c["seed"], "n": c["n"], "final_wins": c["final_wins"]} for c in chunks],
         "opponent": opponents.pop(),
+        "temperature": temperatures.pop(),
         "n": n,
         "final_wins": wins,
         "opponent_wins": sum(c.get("opponent_wins", c.get("rule_wins", 0)) for c in chunks),
@@ -224,6 +236,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--policy", default=DEFAULT_POLICY_PATH, help="policy.json path")
     p.add_argument("--time-limit", type=float, default=0.4,
                    help="MCTS per-decision search cap (s) — keep = main.py's")
+    p.add_argument("--temperature", type=float, default=0.25,
+                   help="PPO sampling temperature (default matches main.py)")
     p.add_argument("--per-move-timeout", type=float, default=5.0,
                    help="hard per-move timeout (s)")
     p.add_argument("--json", default=None, help="also write the raw JSON result here")

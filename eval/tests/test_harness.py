@@ -19,6 +19,14 @@ from agents.harness import Candidate, DecisionHarness, HarnessAgent, HarnessStat
 from .test_ppo_agent import tiny_policy
 
 
+def test_submission_uses_calibrated_ppo_temperature():
+    """The SOT-1701 promotion setting must not drift from the entry point."""
+    import main
+
+    assert main.PPO_TEMPERATURE == 0.25
+    assert main._agent._temperature == main.PPO_TEMPERATURE
+
+
 def mk_select(n_options: int = 3, *, min_count: int = 1, max_count: int = 1):
     """A minimal engine-shaped selection (the attributes the harness reads)."""
     return SimpleNamespace(

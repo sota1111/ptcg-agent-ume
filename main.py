@@ -41,6 +41,11 @@ def _resolve(relpath: str) -> str:
 
 _DECK_PATH = _resolve("deck.csv")
 
+# SOT-1701: calibrated from the enhanced battle evidence.  The learned PPO
+# policy supplies most submitted decisions, so reducing tail-action sampling
+# improves exploitation while retaining stochastic play.
+PPO_TEMPERATURE = 0.25
+
 
 def read_deck_csv() -> list[int]:
     """Read deck.csv.
@@ -62,6 +67,7 @@ def read_deck_csv() -> list[int]:
 # well inside the competition持ち時間).
 _agent = HarnessAgent(
     policy_path=_resolve(os.path.join("data", "policy.json")),
+    temperature=PPO_TEMPERATURE,
     mcts=True,
     mcts_config=MCTSConfig(time_limit_s=0.4, deck_path=_DECK_PATH),
 )
