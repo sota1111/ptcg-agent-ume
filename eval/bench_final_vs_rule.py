@@ -241,6 +241,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--per-move-timeout", type=float, default=5.0,
                    help="hard per-move timeout (s)")
     p.add_argument("--json", default=None, help="also write the raw JSON result here")
+    p.add_argument("--kpi", default=None, metavar="ISSUE",
+                   help="append a KPI record for this Linear issue to eval/kpi_history.jsonl (SOT-1710)")
     p.add_argument("--aggregate", nargs="+", metavar=("OUT", "CHUNK"), default=None,
                    help="merge chunk JSONs: --aggregate out.json chunk1.json chunk2.json ...")
     args = p.parse_args(argv if argv is not None else sys.argv[1:])
@@ -250,10 +252,16 @@ def main(argv: list[str] | None = None) -> int:
         if not chunks:
             p.error("--aggregate needs an output path followed by at least one chunk JSON")
         result = aggregate(chunks)
-        return finish(result, out, n_requested=result["n"])
+        code = finish(result, out, n_requested=result["n"])
+    else:
+        result = run_bench(args)
+        code = finish(result, args.json, n_requested=args.n)
 
-    result = run_bench(args)
-    return finish(result, args.json, n_requested=args.n)
+    if args.kpi:
+        from eval.kpi import append_history, record_from_bench_result
+        rec = record_from_bench_result(result, issue=args.kpi)
+        print(f"KPI record appended -> {append_history(rec)}")
+    return code
 
 
 if __name__ == "__main__":
