@@ -24,6 +24,18 @@ venv/bin/python eval/kpi.py --measure --n-rule 48 --n-random 24 \
     --seed 20260718 --issue SOT-XXXX
 ```
 
+Nを広げる計測は、独立seed範囲を使う並列shardで実行する。例えばRule N=200、
+Random N=100を4 shardで測る場合:
+
+```bash
+venv/bin/python eval/kpi.py --measure --n-rule 200 --n-random 100 \
+    --shards 4 --seed 20260719 --seed-stride 1000000 --issue SOT-XXXX
+```
+
+各shardの結果はプロセス内で集約され、合計wins/NからWilson CIを再計算して
+1計測=1行として履歴に追記する。seed範囲が重ならないよう、`--seed-stride` は
+各shardの試合数より十分大きい値を使う。
+
 既存の昇格ベンチ `eval/bench_final_vs_rule.py` からも `--kpi` フックで記録できる
 (単発ベンチは片側の勝率KPIのみ埋まり、もう片方は null):
 
