@@ -34,6 +34,7 @@ import math
 import os
 import subprocess
 import sys
+from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timezone
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -175,22 +176,54 @@ def load_history(path: str = None) -> list:
         return [json.loads(line) for line in f if line.strip()]
 
 
+def shard_sizes(n: int, shards: int) -> list[int]:
+    """Split *n* matches evenly, omitting empty shards."""
+    if n < 0:
+        raise ValueError("match count must be non-negative")
+    if shards < 1:
+        raise ValueError("shards must be at least 1")
+    if n == 0:
+        return []
+    count = min(n, shards)
+    q, r = divmod(n, count)
+    return [q + (i < r) for i in range(count)]
+
+
+def _run_bench_shard(spec: tuple) -> dict:
+    """Process-pool entry point; each shard owns an independent RNG range."""
+    from eval.bench_final_vs_rule import run_bench
+    opponent, n, seed, policy, time_limit, temperature, timeout = spec
+    return run_bench(argparse.Namespace(
+        opponent=opponent, n=n, seed=seed, policy=policy,
+        time_limit=time_limit, temperature=temperature,
+        per_move_timeout=timeout,
+    ))
+
+
 # ---------------------------------------------------------------- measurement
 
 def run_measure(args) -> int:
     """Measure vs Rule (and vs Random) with the submission configuration and
     append one history record."""
-    from eval.bench_final_vs_rule import run_bench
+    from eval.bench_final_vs_rule import aggregate_results
     from agents.ppo_agent import DEFAULT_POLICY_PATH
 
     def bench(opponent: str, n: int) -> dict:
-        ns = argparse.Namespace(
-            n=n, seed=args.seed, opponent=opponent,
-            policy=DEFAULT_POLICY_PATH, time_limit=0.4, temperature=0.25,
-            per_move_timeout=5.0)
-        print(f"[kpi] measuring vs {opponent} (n={n}, seed={args.seed})...",
+        sizes = shard_sizes(n, args.shards)
+        specs = [
+            (opponent, size, args.seed + i * args.seed_stride,
+             DEFAULT_POLICY_PATH, args.time_limit, 0.25, 5.0)
+            for i, size in enumerate(sizes)
+        ]
+        print(f"[kpi] measuring vs {opponent} (n={n}, shards={len(specs)}, "
+              f"seeds={[s[2] for s in specs]})...",
               flush=True)
-        r = run_bench(ns)
+        if len(specs) == 1:
+            r = _run_bench_shard(specs[0])
+        else:
+            with ProcessPoolExecutor(max_workers=len(specs)) as pool:
+                chunks = list(pool.map(_run_bench_shard, specs))
+            r = aggregate_results(chunks)
         print(f"[kpi] vs {opponent}: win_rate={r['final_win_rate']:.3f} "
               f"Wilson95=[{r['ci95_low']:.4f}, {r['ci95_high']:.4f}] "
               f"faults={r['final_faults']}", flush=True)
@@ -242,6 +275,12 @@ def main(argv=None) -> int:
     p.add_argument("--n-random", type=int, default=24,
                    help="matches vs RandomAgent (0 skips)")
     p.add_argument("--seed", type=int, default=20260718)
+    p.add_argument("--shards", type=int, default=1,
+                   help="parallel independent-seed shards per opponent")
+    p.add_argument("--seed-stride", type=int, default=1000000,
+                   help="distance between shard base seeds")
+    p.add_argument("--time-limit", type=float, default=0.4,
+                   help="MCTS search cap per decision (seconds)")
     p.add_argument("--from-report", default=None,
                    help="bench_final_vs_rule JSON result -> one record")
     p.add_argument("--random-report", default=None,

@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 from eval.kpi import (append_history, build_record, load_history,
-                      record_from_bench_result, wilson_ci)
+                      record_from_bench_result, shard_sizes, wilson_ci)
 from eval.kpi_report import compare_last_two
 
 
@@ -27,6 +27,20 @@ def test_wilson_ci_bounds():
     lo, hi = wilson_ci(30, 48)
     assert 0.0 <= lo < 30 / 48 < hi <= 1.0
     assert wilson_ci(0, 0) == (0.0, 1.0)
+
+
+def test_shard_sizes_are_balanced_and_complete():
+    assert shard_sizes(200, 4) == [50, 50, 50, 50]
+    assert shard_sizes(10, 3) == [4, 3, 3]
+    assert shard_sizes(2, 8) == [1, 1]
+    assert shard_sizes(0, 4) == []
+
+
+def test_shard_sizes_reject_invalid_values():
+    with pytest.raises(ValueError):
+        shard_sizes(-1, 2)
+    with pytest.raises(ValueError):
+        shard_sizes(10, 0)
 
 
 def test_build_record_full():

@@ -126,12 +126,10 @@ def run_bench(args: argparse.Namespace) -> dict:
     }
 
 
-def aggregate(paths: list[str]) -> dict:
-    """Merge chunk results (independent seeds) into one promotion judgement."""
-    chunks = []
-    for p in paths:
-        with open(p, encoding="utf-8") as fh:
-            chunks.append(json.load(fh))
+def aggregate_results(chunks: list[dict]) -> dict:
+    """Merge in-memory chunk results produced with independent seeds."""
+    if not chunks:
+        raise ValueError("at least one chunk is required")
     opponents = {c.get("opponent", "rule") for c in chunks}
     if len(opponents) != 1:
         raise SystemExit(f"cannot aggregate chunks of different opponents: {sorted(opponents)}")
@@ -163,6 +161,8 @@ def aggregate(paths: list[str]) -> dict:
         "chunks": [{"seed": c["seed"], "n": c["n"], "final_wins": c["final_wins"]} for c in chunks],
         "opponent": opponents.pop(),
         "temperature": temperatures.pop(),
+        "seed": chunks[0].get("seed"),
+        "time_limit_s": chunks[0].get("time_limit_s"),
         "n": n,
         "final_wins": wins,
         "opponent_wins": sum(c.get("opponent_wins", c.get("rule_wins", 0)) for c in chunks),
@@ -179,6 +179,15 @@ def aggregate(paths: list[str]) -> dict:
         "harness_stats": harness.report(),
         "mcts_stats": mcts.report(),
     }
+
+
+def aggregate(paths: list[str]) -> dict:
+    """Merge chunk JSON results (independent seeds) into one judgement."""
+    chunks = []
+    for p in paths:
+        with open(p, encoding="utf-8") as fh:
+            chunks.append(json.load(fh))
+    return aggregate_results(chunks)
 
 
 def finish(result: dict, json_path: str | None, n_requested: int) -> int:
