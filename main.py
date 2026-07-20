@@ -14,6 +14,7 @@ root, from an arbitrary cwd, and inside a Kaggle simulation.
 """
 
 import os
+import secrets
 import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -27,6 +28,7 @@ for _base in (_HERE, _KAGGLE_AGENT_DIR):
 from cg.api import Observation, to_observation_class  # noqa: E402
 
 from agents.harness import HarnessAgent  # noqa: E402
+from agents.compatibility import CompatibilityAdapter, LegacyDeckStrategy  # noqa: E402
 from agents.mcts import MCTSConfig  # noqa: E402
 
 
@@ -65,11 +67,25 @@ def read_deck_csv() -> list[int]:
 # MCTS/harness measurement across decisions). time_limit_s=0.4 is the
 # SOT-1690-measured per-decision search cap (max think ~0.4s per decision,
 # well inside the competition持ち時間).
-_agent = HarnessAgent(
-    policy_path=_resolve(os.path.join("data", "policy.json")),
-    temperature=PPO_TEMPERATURE,
-    mcts=True,
-    mcts_config=MCTSConfig(time_limit_s=0.4, deck_path=_DECK_PATH),
+_AGENT_SEED = secrets.randbits(63)
+
+
+def _new_harness_agent() -> HarnessAgent:
+    return HarnessAgent(
+        seed=_AGENT_SEED,
+        policy_path=_resolve(os.path.join("data", "policy.json")),
+        temperature=PPO_TEMPERATURE,
+        mcts=True,
+        mcts_config=MCTSConfig(time_limit_s=0.4, deck_path=_DECK_PATH),
+    )
+
+
+_legacy_agent = _new_harness_agent()
+_candidate_agent = _new_harness_agent()
+_agent = CompatibilityAdapter(
+    legacy=_legacy_agent,
+    candidate=LegacyDeckStrategy(_candidate_agent),
+    mode=os.environ.get("PTCG_UME_MIGRATION_MODE", "legacy"),
 )
 
 
