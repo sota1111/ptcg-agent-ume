@@ -24,7 +24,8 @@ def test_submission_uses_calibrated_ppo_temperature():
     import main
 
     assert main.PPO_TEMPERATURE == 0.25
-    assert main._agent._temperature == main.PPO_TEMPERATURE
+    assert main._legacy_agent._temperature == main.PPO_TEMPERATURE
+    assert main._candidate_agent._temperature == main.PPO_TEMPERATURE
 
 
 def mk_select(n_options: int = 3, *, min_count: int = 1, max_count: int = 1):
@@ -210,9 +211,9 @@ def test_main_agent_is_harness_configured_and_legal():
     pytest.importorskip("cg.api", reason="cabt engine (cg/) not installed")
     import main
 
-    assert isinstance(main._agent, HarnessAgent)
-    assert main._agent.policy_loaded  # the committed data/policy.json loads
-    assert main._agent._mcts is not None  # MCTS reinforcement is wired in
+    assert isinstance(main._legacy_agent, HarnessAgent)
+    assert main._legacy_agent.policy_loaded  # the committed data/policy.json loads
+    assert main._legacy_agent._mcts is not None  # MCTS reinforcement is wired in
     action = main.agent(_engine_obs(5))
     assert isinstance(action, list) and len(action) == 1
     assert 0 <= action[0] < 5
