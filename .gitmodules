@@ -1,0 +1,3 @@
+[submodule "vendor/ptcg-agent-core"]
+	path = vendor/ptcg-agent-core
+	url = https://github.com/sota1111/ptcg-agent-core.git

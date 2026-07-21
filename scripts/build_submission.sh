@@ -1,10 +1,30 @@
 #!/bin/bash
-# Pack the submission entry point and all of its bundled runtime dependencies.
-set -e
-REPO="$(cd "$(dirname "$0")/.." && pwd)"; cd "$REPO"
-[ -d cg ] && [ -d agents ] && [ -d data ] && [ -f main.py ] && [ -f deck.csv ] || {
-  echo "missing cg/, agents/, data/, main.py, or deck.csv (run setup_engine.sh)"
+# Build the Kaggle archive defined by the shared ptcg-agent-core guide.
+set -euo pipefail
+
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
+ARCHIVE="$REPO/submission.tar.gz"
+
+for required in main.py deck.csv agents data cg; do
+  if [ ! -e "$REPO/$required" ]; then
+    echo "missing required submission path: $required" >&2
+    exit 1
+  fi
+done
+
+tar -C "$REPO" -czf "$ARCHIVE" \
+  --exclude='__pycache__' --exclude='*.pyc' \
+  main.py deck.csv agents data cg
+gzip -t "$ARCHIVE"
+
+listing="$(mktemp)"
+trap 'rm -f -- "$listing"' EXIT
+tar -tzf "$ARCHIVE" > "$listing"
+grep -Fx 'main.py' "$listing" >/dev/null
+grep -Fx 'deck.csv' "$listing" >/dev/null
+if grep -E '(^|/)(\.env($|\.)|\.git/|vendor/|tests/|eval/|venv/|access_token|kaggle\.json|__pycache__/|.*\.pyc$)' "$listing"; then
+  echo "submission contains a forbidden path" >&2
   exit 1
-}
-tar --exclude='__pycache__' --exclude='*.pyc' -czf submission.tar.gz main.py deck.csv agents data cg
-echo "wrote $REPO/submission.tar.gz"; tar -tzf submission.tar.gz | head
+fi
+
+echo "submission archive: $ARCHIVE"

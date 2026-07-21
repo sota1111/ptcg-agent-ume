@@ -65,12 +65,46 @@ venv/bin/python eval/deck_eval.py 200 decks/challenger_example.csv  # paired A/B
 
 ## Setup
 ```bash
+git submodule update --init --recursive
+bash scripts/check_core_compatibility.sh
 python3 -m venv venv && venv/bin/pip install -r requirements.txt
 bash scripts/setup_engine.sh          # copies cg/ + data/ from the Kaggle download
 venv/bin/python eval/run_match.py     # run one local self-play match
 ```
 
+## Shared core dependency
+
+This repository consumes [`ptcg-agent-core`](vendor/ptcg-agent-core) as a
+pinned Git submodule, using the same integration boundary as the other PTCG
+agents. Core owns algorithm-independent contracts and the shared
+[Kaggle submission guide](vendor/ptcg-agent-core/docs/kaggle-submission.md).
+Ume continues to own its Python adapter, deck, PPO/MCTS policy, and evaluation
+logic; those are deliberately outside the common-core contract.
+
+The pinned commit keeps setup and submission builds reproducible. To update
+core, review its schema versions and release notes, then run:
+
+```bash
+git -C vendor/ptcg-agent-core fetch origin main
+git -C vendor/ptcg-agent-core checkout origin/main
+bash scripts/check_core_compatibility.sh
+venv/bin/python -m pytest eval/tests/
+git add vendor/ptcg-agent-core
+```
+
+Commit the gitlink update together with the compatibility results. If the new
+core is incompatible, restore the previous gitlink with
+`git checkout -- vendor/ptcg-agent-core`, run
+`git submodule update --init`, and re-run both checks. Do not use an unreviewed
+moving branch for a submission build.
+
 ## Build a submission
 ```bash
 bash scripts/build_submission.sh      # -> submission.tar.gz (main.py + deck.csv + cg/)
 ```
+
+The builder follows the core-owned submission layout and checks that required
+top-level files exist while development files, credentials, Git metadata, and
+the core checkout remain outside the archive. For authentication, submission,
+result checks, and troubleshooting, follow the
+[shared core guide](vendor/ptcg-agent-core/docs/kaggle-submission.md).

@@ -20,7 +20,7 @@ reserved for the battle protocol. Before cutover, run representative fixtures an
 
 ```bash
 PTCG_UME_MIGRATION_MODE=shadow venv/bin/python -m pytest eval/tests/test_compatibility.py
-PTCG_UME_MIGRATION_MODE=core venv/bin/python eval/arena.py --games 4 --workers 1
+PTCG_UME_MIGRATION_MODE=core venv/bin/python eval/arena.py 4
 ```
 
 ## Rollback
