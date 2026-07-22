@@ -1,0 +1,34 @@
+{
+  "schema": "ume-runtime-profile/v1",
+  "profile_id": "ume-high-variance-pressure-v1",
+  "source_issue": "SOT-1850",
+  "source_artifact": "artifacts/ptcg-ume-aggressive/sot-1850/report.json",
+  "deck_artifact": "deck.csv",
+  "policy_artifact": "data/policy.json",
+  "policy_temperature": 0.35,
+  "search": {
+    "time_limit_s": 0.4,
+    "rollout_depth": 7,
+    "ucb_c": 1.25,
+    "deviate_margin": 0.08,
+    "n_determinizations": 3,
+    "max_candidates": 8
+  },
+  "harness": {
+    "top_alternatives": 4,
+    "coverage_weight": 0.05,
+    "act_bonus": 0.04
+  },
+  "evaluation": {
+    "budget_hours": 8,
+    "checkpoint_every_matchups": 1,
+    "resume": true,
+    "fixed_seed": 187500,
+    "seat_swap": true
+  },
+  "runtime": {
+    "total_budget_s": 600,
+    "per_move_timeout_s": 5,
+    "illegal_action_fallback": "highest-value-legal"
+  }
+}

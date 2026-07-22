@@ -103,6 +103,13 @@ moving branch for a submission build.
 bash scripts/build_submission.sh      # -> submission.tar.gz (main.py + deck.csv + cg/)
 ```
 
+The submission loads the hardened `ume-high-variance-pressure-v1` policy/search
+settings from `agents/runtime_profile.json`. The artifact is bundled in the
+archive, pins the 600-second runtime and legal-action fallback contracts, and is
+also consumed by the runtime promotion tests so evaluation cannot silently use
+different settings. Its evaluation contract fixes the seed, reverses seats,
+supports checkpoint/resume, and caps a search campaign at eight hours.
+
 The builder follows the core-owned submission layout and checks that required
 top-level files exist while development files, credentials, Git metadata, and
 the core checkout remain outside the archive. For authentication, submission,
