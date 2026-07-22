@@ -19,21 +19,46 @@ import sys
 
 try:
     _HERE = os.path.dirname(os.path.abspath(__file__))
+    _EXEC_WITHOUT_FILE = False
 except NameError:
     # Kaggle executes this file with exec() and does not define __file__.
     _HERE = os.path.abspath(os.getcwd())
+    _EXEC_WITHOUT_FILE = True
 _KAGGLE_AGENT_DIR = "/kaggle_simulations/agent"
 
-# Make the bundled packages (agents/, cg/) importable wherever we were loaded from.
-for _base in (_HERE, _KAGGLE_AGENT_DIR):
-    if os.path.isdir(_base) and _base not in sys.path:
-        sys.path.insert(0, _base)
+# Make the bundled packages (agents/, cg/) importable wherever we were loaded
+# from. Kaggle's extracted bundle is authoritative there; otherwise use the
+# directory containing this source (or the exec() cwd fallback).
+_BUNDLE_DIR = (
+    _KAGGLE_AGENT_DIR
+    if _EXEC_WITHOUT_FILE and os.path.isdir(_KAGGLE_AGENT_DIR)
+    else _HERE
+)
+if not sys.path or sys.path[0] != _BUNDLE_DIR:
+    sys.path.insert(0, _BUNDLE_DIR)
+
+# kaggle_environments may preload an unrelated top-level package named
+# ``agents`` (for example lux_ai_s3.agents) before exec() reaches this file.
+# sys.path precedence cannot replace an entry already cached in sys.modules,
+# so discard only foreign ``agents`` modules and let Python load our bundled
+# package. Never evict an already-loaded module from this submission itself.
+_bundle_agents = os.path.realpath(os.path.join(_BUNDLE_DIR, "agents"))
+_loaded_agents = sys.modules.get("agents")
+_loaded_agents_file = getattr(_loaded_agents, "__file__", "") if _loaded_agents else ""
+if _loaded_agents is not None and not (
+    _loaded_agents_file
+    and os.path.realpath(_loaded_agents_file).startswith(_bundle_agents + os.sep)
+):
+    for _module_name in list(sys.modules):
+        if _module_name == "agents" or _module_name.startswith("agents."):
+            del sys.modules[_module_name]
 
 from cg.api import Observation, to_observation_class  # noqa: E402
 
 from agents.harness import HarnessAgent  # noqa: E402
 from agents.compatibility import CompatibilityAdapter, LegacyDeckStrategy  # noqa: E402
 from agents.mcts import MCTSConfig  # noqa: E402
+from agents.runtime_profile import load_runtime_profile  # noqa: E402
 
 
 def _resolve(relpath: str) -> str:
@@ -47,10 +72,11 @@ def _resolve(relpath: str) -> str:
 
 _DECK_PATH = _resolve("deck.csv")
 
-# SOT-1701: calibrated from the enhanced battle evidence.  The learned PPO
-# policy supplies most submitted decisions, so reducing tail-action sampling
-# improves exploitation while retaining stochastic play.
-PPO_TEMPERATURE = 0.25
+# SOT-1875: the hardened high-variance profile is a bundled, versioned runtime
+# artifact.  Loading one source of truth prevents the submission entry point
+# and evaluation harness from silently drifting apart.
+RUNTIME_PROFILE = load_runtime_profile()
+PPO_TEMPERATURE = RUNTIME_PROFILE.policy_temperature
 
 
 def read_deck_csv() -> list[int]:
@@ -68,9 +94,9 @@ def read_deck_csv() -> list[int]:
 
 
 # One agent instance for the whole match (keeps the RNG stream and the
-# MCTS/harness measurement across decisions). time_limit_s=0.4 is the
-# SOT-1690-measured per-decision search cap (max think ~0.4s per decision,
-# well inside the competition持ち時間).
+# MCTS/harness measurement across decisions).  Search and candidate-generation
+# knobs come from the hardened profile and remain below the 5 s move timeout
+# and 600 s Kaggle match budget recorded in that artifact.
 _AGENT_SEED = secrets.randbits(63)
 
 
@@ -80,7 +106,11 @@ def _new_harness_agent() -> HarnessAgent:
         policy_path=_resolve(os.path.join("data", "policy.json")),
         temperature=PPO_TEMPERATURE,
         mcts=True,
-        mcts_config=MCTSConfig(time_limit_s=0.4, deck_path=_DECK_PATH),
+        mcts_config=MCTSConfig(**{
+            **RUNTIME_PROFILE.mcts.__dict__,
+            "deck_path": _DECK_PATH,
+        }),
+        harness_config=RUNTIME_PROFILE.harness,
     )
 
 
@@ -89,7 +119,7 @@ _candidate_agent = _new_harness_agent()
 _agent = CompatibilityAdapter(
     legacy=_legacy_agent,
     candidate=LegacyDeckStrategy(_candidate_agent),
-    mode=os.environ.get("PTCG_UME_MIGRATION_MODE", "legacy"),
+    mode=os.environ.get("PTCG_UME_MIGRATION_MODE", "core"),
 )
 
 

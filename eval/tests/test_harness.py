@@ -19,11 +19,11 @@ from agents.harness import Candidate, DecisionHarness, HarnessAgent, HarnessStat
 from .test_ppo_agent import tiny_policy
 
 
-def test_submission_uses_calibrated_ppo_temperature():
-    """The SOT-1701 promotion setting must not drift from the entry point."""
+def test_submission_uses_promoted_runtime_temperature():
+    """The SOT-1875 hardened setting must not drift from the entry point."""
     import main
 
-    assert main.PPO_TEMPERATURE == 0.25
+    assert main.PPO_TEMPERATURE == main.RUNTIME_PROFILE.policy_temperature == 0.35
     assert main._legacy_agent._temperature == main.PPO_TEMPERATURE
     assert main._candidate_agent._temperature == main.PPO_TEMPERATURE
 
