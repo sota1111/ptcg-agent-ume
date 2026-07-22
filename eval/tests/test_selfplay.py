@@ -148,14 +148,14 @@ def test_decision_indices_are_dense_per_trajectory(selfplay_run):
 # Deck rotation (SOT-1695)
 # --------------------------------------------------------------------------- #
 def test_load_deck_dir_reads_sorted_csv_decks():
-    decks = load_deck_dir("decks/initial")
+    decks = load_deck_dir("decks/rotation_baseline")
     assert len(decks) == 25
     assert [name for name, _ in decks] == sorted(name for name, _ in decks)
     assert all(len(deck) == 60 for _, deck in decks)
 
 
 def test_deck_rotation_mirrors_and_stamps_deck_field(tmp_path):
-    decks = load_deck_dir("decks/initial")[:2]
+    decks = load_deck_dir("decks/rotation_baseline")[:2]
     out = tmp_path / "rotation.jsonl"
     summary = run_selfplay(
         4, str(out), agents=("rule", "rule"), decks=decks, base_seed=11,

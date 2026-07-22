@@ -1,0 +1,18 @@
+{
+  "issue": "SOT-1852",
+  "harness": "eval/deck_eval.py (paired deck A/B, fixed RuleAgent both seats, side-swapped)",
+  "champion": "champion_v1 (decks/champion.py)",
+  "n_matches_per_candidate": 200,
+  "note": "small-N screen of the reorganized candidate pool; champion promotion requires a separate confirm with aggregated Wilson CI lower bound > 0.5 and fault 0",
+  "candidates": [
+    {"deck": "stw_e30", "champion_win_rate": 0.515, "champion_ci95": [0.446, 0.583], "draws": 0, "undecided": 0},
+    {"deck": "zero_champion", "champion_win_rate": 0.535, "champion_ci95": [0.466, 0.603], "draws": 0, "undecided": 0},
+    {"deck": "stw_e40", "champion_win_rate": 0.540, "champion_ci95": [0.471, 0.608], "draws": 0, "undecided": 0},
+    {"deck": "stw_e25", "champion_win_rate": 0.565, "champion_ci95": [0.496, 0.632], "draws": 0, "undecided": 0},
+    {"deck": "mewtwo_tech_boss", "champion_win_rate": 0.860, "champion_ci95": [0.805, 0.901], "draws": 0, "undecided": 0},
+    {"deck": "aggro_kyogre", "champion_win_rate": 0.875, "champion_ci95": [0.822, 0.914], "draws": 0, "undecided": 0},
+    {"deck": "dragapult_e5_low", "champion_win_rate": 0.875, "champion_ci95": [0.822, 0.914], "draws": 0, "undecided": 0},
+    {"deck": "single_prize_tr", "champion_win_rate": 0.950, "champion_ci95": [0.910, 0.973], "draws": 0, "undecided": 0}
+  ],
+  "verdict": "no candidate beats the incumbent at screen; stw_e30 / zero_champion / stw_e40 / stw_e25 sit in the parity band (champion CI includes 0.5) and are the confirm-priority queue; champion unchanged"
+}

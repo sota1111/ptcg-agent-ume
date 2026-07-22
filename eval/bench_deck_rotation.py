@@ -3,7 +3,7 @@
 Plays the final :class:`agents.harness.HarnessAgent` configuration (the exact
 ``main.py`` setup: PPO policy + critical-position MCTS at the 0.4 s cap +
 candidate harness) as a **mirror** on every ``*.csv`` deck under ``--deck-dir``
-(default ``decks/initial``, the 25 tournament decks), ``--games-per-deck``
+(default ``decks/rotation_baseline``, the 25 tournament decks), ``--games-per-deck``
 matches each, and verifies the legality gate holds on every archetype:
 
 * **fault 0** on both sides (no illegal move / timeout / agent exception) —
@@ -39,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         description="HarnessAgent mirror on every rotation deck: fault/illegal-move gate."
     )
-    p.add_argument("--deck-dir", default="decks/initial", help="rotation deck directory")
+    p.add_argument("--deck-dir", default="decks/rotation_baseline", help="rotation deck directory")
     p.add_argument("--games-per-deck", type=int, default=2, help="mirror matches per deck")
     p.add_argument("--policy", default=DEFAULT_POLICY_PATH, help="policy.json path")
     p.add_argument("--time-limit", type=float, default=0.4,
