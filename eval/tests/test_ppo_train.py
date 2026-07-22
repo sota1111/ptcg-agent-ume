@@ -26,9 +26,12 @@ from agents.policy_net import forward, load_policy, validate_policy  # noqa: E40
 from train.ppo import (  # noqa: E402
     _shaped_rewards,
     build_batch,
+    build_distill_batch,
     compute_gae,
     forward_np,
     init_params,
+    distill_update,
+    load_distill_records,
     load_records,
     main,
     masked_log_softmax_np,
@@ -213,3 +216,25 @@ def test_offline_training_produces_valid_reloadable_artifact(tmp_path):
     params_out = policy_to_params(policy)
     params_resumed = policy_to_params(resumed)
     assert not np.allclose(params_resumed["w2"], params_out["w2"])
+
+
+def test_policy_distillation_learns_teacher_actions(tmp_path):
+    data = tmp_path / "teacher.jsonl"
+    records = [{
+        "schema": "ume-policy-distill-v1", "feature_version": FEATURE_VERSION,
+        "teacher": "test-mcts", "game": i, "player": i % 2, "decision": 0,
+        "features": [float(i % 3) / 2] * FEATURE_DIM,
+        "n_options": 3, "teacher_action_index": 2,
+    } for i in range(64)]
+    _write_records(data, records)
+    kept, tally = load_distill_records([str(data)])
+    assert tally == {"read": 64, "kept": 64, "skipped": {}}
+    params = init_params(hidden=8, seed=4)
+    adam = {"t": 0, "m": {k: np.zeros_like(v) for k, v in params.items()},
+            "v": {k: np.zeros_like(v) for k, v in params.items()}}
+    batch = build_distill_batch(kept)
+    before = masked_log_softmax_np(forward_np(params, batch["x"])[1], batch["n_options"])
+    losses = distill_update(params, batch, adam, epochs=20, minibatch=64, lr=0.01, seed=5)
+    after = masked_log_softmax_np(forward_np(params, batch["x"])[1], batch["n_options"])
+    assert losses["distill_loss"] < -float(before[:, 2].mean())
+    assert float(after[:, 2].mean()) > float(before[:, 2].mean())
