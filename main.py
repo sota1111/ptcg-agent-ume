@@ -17,7 +17,11 @@ import os
 import secrets
 import sys
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+try:
+    _HERE = os.path.dirname(os.path.abspath(__file__))
+except NameError:
+    # Kaggle executes this file with exec() and does not define __file__.
+    _HERE = os.path.abspath(os.getcwd())
 _KAGGLE_AGENT_DIR = "/kaggle_simulations/agent"
 
 # Make the bundled packages (agents/, cg/) importable wherever we were loaded from.
