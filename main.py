@@ -19,15 +19,39 @@ import sys
 
 try:
     _HERE = os.path.dirname(os.path.abspath(__file__))
+    _EXEC_WITHOUT_FILE = False
 except NameError:
     # Kaggle executes this file with exec() and does not define __file__.
     _HERE = os.path.abspath(os.getcwd())
+    _EXEC_WITHOUT_FILE = True
 _KAGGLE_AGENT_DIR = "/kaggle_simulations/agent"
 
-# Make the bundled packages (agents/, cg/) importable wherever we were loaded from.
-for _base in (_HERE, _KAGGLE_AGENT_DIR):
-    if os.path.isdir(_base) and _base not in sys.path:
-        sys.path.insert(0, _base)
+# Make the bundled packages (agents/, cg/) importable wherever we were loaded
+# from. Kaggle's extracted bundle is authoritative there; otherwise use the
+# directory containing this source (or the exec() cwd fallback).
+_BUNDLE_DIR = (
+    _KAGGLE_AGENT_DIR
+    if _EXEC_WITHOUT_FILE and os.path.isdir(_KAGGLE_AGENT_DIR)
+    else _HERE
+)
+if not sys.path or sys.path[0] != _BUNDLE_DIR:
+    sys.path.insert(0, _BUNDLE_DIR)
+
+# kaggle_environments may preload an unrelated top-level package named
+# ``agents`` (for example lux_ai_s3.agents) before exec() reaches this file.
+# sys.path precedence cannot replace an entry already cached in sys.modules,
+# so discard only foreign ``agents`` modules and let Python load our bundled
+# package. Never evict an already-loaded module from this submission itself.
+_bundle_agents = os.path.realpath(os.path.join(_BUNDLE_DIR, "agents"))
+_loaded_agents = sys.modules.get("agents")
+_loaded_agents_file = getattr(_loaded_agents, "__file__", "") if _loaded_agents else ""
+if _loaded_agents is not None and not (
+    _loaded_agents_file
+    and os.path.realpath(_loaded_agents_file).startswith(_bundle_agents + os.sep)
+):
+    for _module_name in list(sys.modules):
+        if _module_name == "agents" or _module_name.startswith("agents."):
+            del sys.modules[_module_name]
 
 from cg.api import Observation, to_observation_class  # noqa: E402
 

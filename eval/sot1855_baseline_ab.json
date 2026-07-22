@@ -1,0 +1,54 @@
+{
+  "policy": "data/policy.json",
+  "n_per_matchup": 200,
+  "seed": 20260722,
+  "results": {
+    "random": {
+      "opponent": "random",
+      "n": 200,
+      "ppo_wins": 148,
+      "opponent_wins": 52,
+      "draws": 0,
+      "undecided": 0,
+      "ppo_win_rate": 0.74,
+      "ci95_low": 0.6750925439746589,
+      "ci95_high": 0.7958616993642531,
+      "ppo_faults": 0,
+      "opponent_faults": 0,
+      "ppo_fault_categories": {},
+      "ppo_latency": {
+        "n_decisions": 5270,
+        "mean_ms": 0.6446869329035112,
+        "p50_ms": 0.5502905696630478,
+        "p95_ms": 1.3057061471045017,
+        "p99_ms": 1.8499553902074708,
+        "max_ms": 3.147364128381014
+      },
+      "run_dir": "eval/arena_runs/bench_ppo_vs_random_n200"
+    },
+    "rule": {
+      "opponent": "rule",
+      "n": 200,
+      "ppo_wins": 41,
+      "opponent_wins": 159,
+      "draws": 0,
+      "undecided": 0,
+      "ppo_win_rate": 0.205,
+      "ci95_low": 0.15486176203836208,
+      "ci95_high": 0.26625698052422514,
+      "ppo_faults": 0,
+      "opponent_faults": 0,
+      "ppo_fault_categories": {},
+      "ppo_latency": {
+        "n_decisions": 2575,
+        "mean_ms": 0.5282246317822956,
+        "p50_ms": 0.46429596841335297,
+        "p95_ms": 0.8759432937949893,
+        "p99_ms": 1.2383258342742842,
+        "max_ms": 2.0273481495678425
+      },
+      "run_dir": "eval/arena_runs/bench_ppo_vs_rule_n200"
+    }
+  },
+  "passed": true
+}

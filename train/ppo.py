@@ -78,9 +78,12 @@ __all__ = [
     "forward_np",
     "masked_log_softmax_np",
     "load_records",
+    "load_distill_records",
     "build_batch",
+    "build_distill_batch",
     "compute_gae",
     "ppo_update",
+    "distill_update",
     "save_policy",
     "main",
 ]
@@ -234,6 +237,57 @@ def load_records(paths: list[str], n_slots: int = N_SLOTS) -> tuple[list[dict], 
                 rec["_source"] = source  # game ids are only unique within one file
                 kept.append(rec)
     return kept, {"read": read, "kept": len(kept), "skipped": skipped}
+
+
+def load_distill_records(
+    paths: list[str], n_slots: int = N_SLOTS
+) -> tuple[list[dict], dict]:
+    """Load search-teacher decisions, tallying every rejected record."""
+    kept: list[dict] = []
+    skipped: dict[str, int] = {}
+    read = 0
+
+    def skip(reason: str) -> None:
+        skipped[reason] = skipped.get(reason, 0) + 1
+
+    for path in paths:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                if not line.strip():
+                    continue
+                read += 1
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    skip("bad_json")
+                    continue
+                if rec.get("schema") != "ume-policy-distill-v1" \
+                        or rec.get("feature_version") != FEATURE_VERSION:
+                    skip("schema_mismatch")
+                    continue
+                features = rec.get("features")
+                n_options = rec.get("n_options")
+                action = rec.get("teacher_action_index")
+                if not isinstance(features, list) or len(features) != FEATURE_DIM:
+                    skip("bad_features")
+                elif not isinstance(n_options, int) or isinstance(n_options, bool) \
+                        or n_options < 2:
+                    skip("trivial_choice")
+                elif not isinstance(action, int) or isinstance(action, bool) \
+                        or action < 0 or action >= min(n_options, n_slots):
+                    skip("beyond_slots")
+                else:
+                    kept.append(rec)
+    return kept, {"read": read, "kept": len(kept), "skipped": skipped}
+
+
+def build_distill_batch(records: list[dict]) -> dict:
+    """Teacher decisions -> supervised policy batch (value head untouched)."""
+    return {
+        "x": np.asarray([r["features"] for r in records], dtype=float),
+        "actions": np.asarray([r["teacher_action_index"] for r in records], dtype=int),
+        "n_options": np.asarray([r["n_options"] for r in records], dtype=int),
+    }
 
 
 def compute_gae(
@@ -467,6 +521,49 @@ def ppo_update(
     return last_losses
 
 
+def distill_update(
+    params: dict, batch: dict, adam: dict, *, epochs: int = 4,
+    minibatch: int = 256, lr: float = 3e-4, weight: float = 1.0,
+    max_grad_norm: float = 0.5, seed: int = 0,
+) -> dict:
+    """Minimise masked cross entropy to a search teacher's selected action."""
+    rng = np.random.default_rng(seed)
+    n = len(batch["x"])
+    last: dict = {}
+    for _ in range(epochs):
+        order = rng.permutation(n)
+        for start in range(0, n, minibatch):
+            idx = order[start:start + minibatch]
+            x = batch["x"][idx]
+            actions = batch["actions"][idx]
+            n_options = batch["n_options"][idx]
+            h, logits, _ = forward_np(params, x)
+            logp = masked_log_softmax_np(logits, n_options)
+            mask = np.arange(logits.shape[1])[None, :] < \
+                np.minimum(n_options, logits.shape[1])[:, None]
+            probs = np.where(mask, np.exp(logp), 0.0)
+            rows = np.arange(len(x))
+            loss = -float(logp[rows, actions].mean())
+            d_logits = probs
+            d_logits[rows, actions] -= 1.0
+            d_logits *= weight / len(x)
+            d_h = d_logits @ params["w2"]
+            d_z1 = d_h * (1.0 - h * h)
+            grads = {
+                "w2": d_logits.T @ h, "b2": d_logits.sum(axis=0),
+                "w1": d_z1.T @ x, "b1": d_z1.sum(axis=0),
+            }
+            norm = np.sqrt(sum(float((g**2).sum()) for g in grads.values()))
+            if norm > max_grad_norm:
+                grads = {k: g * (max_grad_norm / norm) for k, g in grads.items()}
+            _adam_step(params, grads, adam, lr)
+            last = {
+                "distill_loss": loss,
+                "teacher_agreement": float((np.argmax(logp, axis=1) == actions).mean()),
+            }
+    return last
+
+
 # --------------------------------------------------------------------------- #
 # The self-play training loop
 # --------------------------------------------------------------------------- #
@@ -641,6 +738,12 @@ def main(argv: Optional[list[str]] = None) -> int:
                         help="existing record JSONL(s) for warm-start updates (repeatable)")
     parser.add_argument("--bootstrap-passes", type=int, default=3,
                         help="PPO update passes over the bootstrap data")
+    parser.add_argument("--distill-data", action="append", default=[],
+                        help="ume-policy-distill-v1 search-teacher JSONL (repeatable)")
+    parser.add_argument("--distill-passes", type=int, default=4,
+                        help="supervised passes over search-teacher decisions")
+    parser.add_argument("--distill-weight", type=float, default=1.0,
+                        help="teacher cross-entropy gradient multiplier")
     parser.add_argument("--init-from", default=None,
                         help="resume from an existing policy.json (再学習)")
     parser.add_argument("--out", default="data/policy.json", help="artifact output path")
@@ -674,6 +777,22 @@ def main(argv: Optional[list[str]] = None) -> int:
         value_coef=args.value_coef, entropy_coef=args.entropy_coef,
     )
     history: list[dict] = []
+
+    if args.distill_data:
+        records, tally = load_distill_records(args.distill_data)
+        if not records:
+            print(f"distill: no trainable records in {args.distill_data} ({tally})")
+            return 1
+        batch = build_distill_batch(records)
+        losses = distill_update(
+            params, batch, adam, epochs=args.distill_passes,
+            minibatch=args.minibatch, lr=args.lr, weight=args.distill_weight,
+            seed=args.seed,
+        )
+        entry = {"phase": "distill", "pass": args.distill_passes,
+                 "records": tally["kept"], "skipped": tally["skipped"], **losses}
+        history.append(entry)
+        print(json.dumps(entry, ensure_ascii=False))
 
     def update_from(paths: list[str], phase: str, passes: int = 1) -> None:
         records, tally = load_records(paths)
@@ -794,6 +913,9 @@ def _meta(
         "iters_done": iters_done,
         "games_per_iter": args.games_per_iter,
         "bootstrap_data": args.bootstrap_data,
+        "distill_data": args.distill_data,
+        "distill_passes": args.distill_passes,
+        "distill_weight": args.distill_weight,
         "hidden": args.hidden,
         "lr": args.lr,
         "clip": args.clip,
