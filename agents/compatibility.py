@@ -35,7 +35,7 @@ class LegacyDeckStrategy:
     """Expose an existing 梅 agent through the versioned strategy boundary."""
 
     agent: Agent
-    implementation_version: str = "ume-ppo-mcts-harness/v1"
+    implementation_version: str = "ume-high-variance-pressure/v1"
     api_version: str = DECK_STRATEGY_API_VERSION
     compatible_adapter_apis: tuple[str, ...] = (ADAPTER_API_VERSION,)
 

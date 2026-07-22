@@ -1,0 +1,50 @@
+{
+  "schema": "ume-runtime-crossplay/v1",
+  "issue": "SOT-1875",
+  "seed": 187500,
+  "seat_swap": true,
+  "results": {
+    "sol": {
+      "games": 2,
+      "wins": 1,
+      "losses": 1,
+      "draws": 0,
+      "unfinished": 0,
+      "faults": 0,
+      "opponent_faults": 0,
+      "win_rate": 0.5
+    },
+    "debate": {
+      "games": 2,
+      "wins": 2,
+      "losses": 0,
+      "draws": 0,
+      "unfinished": 0,
+      "faults": 0,
+      "opponent_faults": 0,
+      "win_rate": 1.0
+    },
+    "fable": {
+      "games": 2,
+      "wins": 0,
+      "losses": 2,
+      "draws": 0,
+      "unfinished": 0,
+      "faults": 0,
+      "opponent_faults": 0,
+      "win_rate": 0.0
+    },
+    "zero": {
+      "games": 2,
+      "wins": 2,
+      "losses": 0,
+      "draws": 0,
+      "unfinished": 0,
+      "faults": 0,
+      "opponent_faults": 0,
+      "win_rate": 1.0
+    }
+  },
+  "complete": true,
+  "safety_pass": true
+}

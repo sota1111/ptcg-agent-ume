@@ -1,0 +1,85 @@
+{
+  "schema": "ume-runtime-promotion/v1",
+  "issue": "SOT-1875",
+  "git_sha": "14e7f935bc868386a830103f07781fcc773b8e81",
+  "profile_id": "ume-high-variance-pressure-v1",
+  "profile_sha256": "c94366b03d7d9f378211888093e63b61e18cd6e09b419b85f884c1c1ecc77639",
+  "deck_sha256": "c3d72ecd696951d73dbb99a1b575e2bd185b43b0f2da02f3e25be664bc68d34c",
+  "policy_sha256": "8cc9709a490249b63971893bb55f0a73a04e032f34be8b29fe93b616c3c1fdd5",
+  "seed": 187500,
+  "seed_count": 10,
+  "seat_swap": true,
+  "engine_seed_support": false,
+  "runtime_budget_s": 600.0,
+  "per_move_timeout_s": 5.0,
+  "elapsed_s": 252.86099243583158,
+  "matchups": {
+    "legacy": {
+      "games": 20,
+      "candidate_wins": 10,
+      "opponent_wins": 10,
+      "draws": 0,
+      "unfinished": 0,
+      "candidate_win_rate": 0.5,
+      "wilson95": [
+        0.2992980081982123,
+        0.7007019918017877
+      ],
+      "candidate_faults": 0,
+      "opponent_faults": 0,
+      "candidate_fault_categories": {},
+      "candidate_latency": {
+        "n_decisions": 303,
+        "mean_ms": 262.8655236309683,
+        "p50_ms": 400.86247492581606,
+        "p95_ms": 401.3065180275589,
+        "p99_ms": 401.4269570633769,
+        "max_ms": 401.70047665014863
+      }
+    },
+    "rule": {
+      "games": 20,
+      "candidate_wins": 8,
+      "opponent_wins": 12,
+      "draws": 0,
+      "unfinished": 0,
+      "candidate_win_rate": 0.4,
+      "wilson95": [
+        0.21880653237281705,
+        0.6134184992377469
+      ],
+      "candidate_faults": 0,
+      "opponent_faults": 0,
+      "candidate_fault_categories": {},
+      "candidate_latency": {
+        "n_decisions": 314,
+        "mean_ms": 256.0264738291431,
+        "p50_ms": 400.86987684480846,
+        "p95_ms": 401.32742593996227,
+        "p99_ms": 401.4300135662779,
+        "max_ms": 401.6859671100974
+      }
+    }
+  },
+  "safety": {
+    "faults": 0,
+    "unfinished": 0,
+    "illegal_actions": 0,
+    "pass": true
+  },
+  "promotion_gate": {
+    "criterion": "legacy Wilson 95% lower bound > 0.5 OR hard-runtime league win rate improves over the prior 0.25; and zero safety faults",
+    "legacy_wilson_pass": false,
+    "prior_hard_runtime_win_rate": 0.25,
+    "hard_runtime_improvement": 0.15,
+    "league_improvement_pass": true,
+    "pass": true
+  },
+  "high_variance": {
+    "legacy_temperature": 0.25,
+    "candidate_temperature": 0.35,
+    "temperature_ratio": 1.4,
+    "exploration_constant": 1.25,
+    "pass": true
+  }
+}
