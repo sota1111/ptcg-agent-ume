@@ -40,3 +40,6 @@ logs show that `kaggle_environments` had preloaded its unrelated top-level
 The submission entry now evicts only foreign `agents` modules from
 `sys.modules`, preserves modules already loaded from its own bundle, and has an
 exec-loader regression test that preloads the conflicting package shape.
+
+Submission `54907335`, built from commit `8c96eec`, completed its Validation
+Episode successfully and recorded a public score of **600.0**.
