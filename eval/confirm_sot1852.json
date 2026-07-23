@@ -1,0 +1,18 @@
+{
+  "issue": "SOT-1852",
+  "harness": "eval/deck_eval.py (paired deck A/B, fixed RuleAgent both seats, side-swapped)",
+  "champion": "champion_v1 (decks/champion.py)",
+  "n_matches_per_candidate": 2000,
+  "note": "large-N confirm of the parity-band candidates from eval/screen_sot1852.json; promotion gate = candidate aggregated Wilson CI lower bound > 0.5 and fault 0",
+  "candidates": [
+    {"deck": "stw_e30", "champion_win_rate": 0.4925, "champion_ci95": [0.471, 0.514], "candidate_win_rate": 0.5075, "draws": 0, "undecided": 0, "artifacts": "eval/deck_runs/champion@v1_vs_stw_e30_20260723T021810/report.json"},
+    {"deck": "zero_champion", "champion_win_rate": 0.494, "champion_ci95": [0.472, 0.516], "candidate_win_rate": 0.506, "draws": 0, "undecided": 0, "artifacts": "eval/deck_runs/champion@v1_vs_zero_champion_20260723T021825/report.json"},
+    {"deck": "stw_e40", "champion_win_rate": 0.525, "champion_ci95": [0.503, 0.547], "candidate_win_rate": 0.475, "draws": 0, "undecided": 0, "artifacts": "eval/deck_runs/champion@v1_vs_stw_e40_20260723T021838/report.json"},
+    {"deck": "stw_e25", "champion_win_rate": 0.5235, "champion_ci95": [0.502, 0.545], "candidate_win_rate": 0.4765, "draws": 0, "undecided": 0, "artifacts": "eval/deck_runs/champion@v1_vs_stw_e25_20260723T021858/report.json"}
+  ],
+  "aggregate_screen_plus_confirm": [
+    {"deck": "stw_e30", "candidate_wins": 1112, "n": 2200, "candidate_win_rate": 0.5055, "ci_crosses_0_5": true},
+    {"deck": "zero_champion", "candidate_wins": 1105, "n": 2200, "candidate_win_rate": 0.5023, "ci_crosses_0_5": true}
+  ],
+  "verdict": "no candidate clears the confirm gate (no candidate Wilson CI lower bound > 0.5); stw_e40 and stw_e25 are significantly WORSE than the incumbent at n=2000; stw_e30 and zero_champion sit exactly in the parity band. champion_v1 retained."
+}
