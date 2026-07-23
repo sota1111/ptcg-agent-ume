@@ -1,0 +1,143 @@
+{
+  "schema": "ume-board-wipe-ab/v1",
+  "small_n": {
+    "stage": "small_n",
+    "arena": {
+      "config": {
+        "run_label": "sot1885_small_n",
+        "created_at": "2026-07-23T10:31:31.546404+00:00",
+        "label_a": "candidate",
+        "label_b": "champion",
+        "agent_a": {
+          "label": "candidate",
+          "type": "BoardWipeTrackingAgent",
+          "version": "1"
+        },
+        "agent_b": {
+          "label": "champion",
+          "type": "BoardWipeTrackingAgent",
+          "version": "1"
+        },
+        "n_matches": 20,
+        "side_swap": true,
+        "agent_seed": 1885,
+        "max_steps": 100000,
+        "per_move_timeout": null,
+        "deck0_hash": "c3d72ecd696951d73dbb99a1b575e2bd185b43b0f2da02f3e25be664bc68d34c",
+        "deck1_hash": "c3d72ecd696951d73dbb99a1b575e2bd185b43b0f2da02f3e25be664bc68d34c",
+        "engine": {
+          "path": "libcg.so",
+          "sha256": "ffd89bf923525a3e6feb5e6201e96a866c0f456895499ed5c4a566303caae67c",
+          "size": 1342400
+        },
+        "git_sha": "5b5b1d3b2ab6cb9dfe53ccc53f57de5118fd671b"
+      },
+      "totals": {
+        "n": 20,
+        "a_wins": 9,
+        "b_wins": 11,
+        "draws": 0,
+        "undecided": 0,
+        "mean_steps": 31.7
+      },
+      "win_rates": {
+        "a_win_rate": 0.45,
+        "a_win_rate_ci95": [
+          0.2581978582556243,
+          0.6579146575496577
+        ],
+        "b_win_rate": 0.55,
+        "b_win_rate_ci95": [
+          0.34208534245034233,
+          0.7418021417443759
+        ],
+        "draw_rate": 0.0
+      },
+      "seat_winrate": {
+        "n_decisive_known_first_player": 20,
+        "first_player_win_rate": 0.6,
+        "second_player_win_rate": 0.4,
+        "A": {
+          "as_first": {
+            "n": 9,
+            "wins": 5,
+            "win_rate": 0.5555555555555556
+          },
+          "as_second": {
+            "n": 11,
+            "wins": 4,
+            "win_rate": 0.36363636363636365
+          }
+        },
+        "B": {
+          "as_first": {
+            "n": 11,
+            "wins": 7,
+            "win_rate": 0.6363636363636364
+          },
+          "as_second": {
+            "n": 9,
+            "wins": 4,
+            "win_rate": 0.4444444444444444
+          }
+        }
+      },
+      "latency": {
+        "candidate": {
+          "n_decisions": 326,
+          "mean_ms": 375.1205841402175,
+          "p50_ms": 500.9099405724555,
+          "p95_ms": 501.29007268697023,
+          "p99_ms": 501.44479412119836,
+          "max_ms": 513.5132512077689
+        },
+        "champion": {
+          "n_decisions": 308,
+          "mean_ms": 357.4290265428967,
+          "p50_ms": 500.88663399219513,
+          "p95_ms": 501.2865166878328,
+          "p99_ms": 501.38212765567005,
+          "max_ms": 501.54118426144123
+        }
+      },
+      "safety": {
+        "a_faults": 0,
+        "b_faults": 0,
+        "a_fault_rate": 0.0,
+        "b_fault_rate": 0.0,
+        "a_fault_categories": {},
+        "b_fault_categories": {},
+        "undecided": 0,
+        "undecided_rate": 0.0
+      },
+      "reason_counts": {
+        "normal": 20
+      },
+      "run_dir": "eval/board_wipe_runs/sot1885_small_n",
+      "results_path": "eval/board_wipe_runs/sot1885_small_n/results.jsonl",
+      "report_path": "eval/board_wipe_runs/sot1885_small_n/report.json"
+    },
+    "kpi": {
+      "candidate": {
+        "losses": 11,
+        "board_wipes": 11,
+        "board_wipe_rate_in_losses": 1.0,
+        "risk_exposures": 1,
+        "board_wipe_avoidance_rate": 0.0
+      },
+      "champion": {
+        "losses": 9,
+        "board_wipes": 9,
+        "board_wipe_rate_in_losses": 1.0,
+        "risk_exposures": 0,
+        "board_wipe_avoidance_rate": 1.0
+      }
+    },
+    "elapsed_s": 232.72945173690096,
+    "sims_per_sec": 0.08593669538056517,
+    "promotion_screen_pass": false
+  },
+  "large_n": null,
+  "champion_updated": false,
+  "decision": "retain_champion"
+}
