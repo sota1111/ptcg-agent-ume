@@ -1,0 +1,22 @@
+{
+  "issue": "SOT-1898",
+  "n_games": 12,
+  "seed": 189820,
+  "search_wins": 6,
+  "champion_wins": 6,
+  "draws": 0,
+  "decided": 12,
+  "search_win_rate": 0.5,
+  "search_win_rate_ci95": [
+    0.2537781703934222,
+    0.7462218296065778
+  ],
+  "faults": {
+    "search_driven": 0,
+    "champion": 0
+  },
+  "search_activation_rate": 0.7945945945945946,
+  "search_ms_max": 1500.907395966351,
+  "per_move_budget_ms": 5000.0,
+  "within_budget": true
+}

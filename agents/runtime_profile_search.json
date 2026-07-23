@@ -1,0 +1,37 @@
+{
+  "schema": "ume-runtime-profile/v1",
+  "profile_id": "ume-search-driven-v1",
+  "source_issue": "SOT-1898",
+  "source_artifact": "docs/search_driven_sot1898.md",
+  "deck_artifact": "deck.csv",
+  "policy_artifact": "data/policy.json",
+  "policy_temperature": 0.35,
+  "search": {
+    "time_limit_s": 1.5,
+    "rollout_depth": 7,
+    "rollout_temperature": 0.35,
+    "ucb_c": 1.25,
+    "deviate_margin": 0.02,
+    "n_determinizations": 3,
+    "max_candidates": 8,
+    "all_decision": true,
+    "match_search_budget_s": 300.0
+  },
+  "harness": {
+    "top_alternatives": 4,
+    "coverage_weight": 0.05,
+    "act_bonus": 0.04
+  },
+  "evaluation": {
+    "budget_hours": 8,
+    "checkpoint_every_matchups": 1,
+    "resume": true,
+    "fixed_seed": 189800,
+    "seat_swap": true
+  },
+  "runtime": {
+    "total_budget_s": 600,
+    "per_move_timeout_s": 5,
+    "illegal_action_fallback": "highest-value-legal"
+  }
+}

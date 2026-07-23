@@ -1,0 +1,75 @@
+{
+  "issue": "SOT-1681",
+  "n_per_pairing": 6,
+  "deck_selection": {
+    "mode": "explicit_seats",
+    "random": false,
+    "pool_size": 0,
+    "pool": [],
+    "seed": null,
+    "planner_deck_sync": true
+  },
+  "contestants": [
+    {
+      "label": "ume:01",
+      "repo": "ptcg-agent-ume",
+      "deck": "01_dragapult.csv"
+    },
+    {
+      "label": "take:01",
+      "repo": "ptcg-agent-take",
+      "deck": "01_dragapult.csv"
+    }
+  ],
+  "pairings": [
+    {
+      "a": "ume:01",
+      "b": "take:01",
+      "n": 6,
+      "decided": 6,
+      "a_wins": 1,
+      "b_wins": 5,
+      "draws": 0,
+      "unfinished": 0,
+      "a_win_rate": 0.1667,
+      "a_win_rate_ci95": [
+        0.0301,
+        0.5635
+      ],
+      "faults": {
+        "ume:01": 0,
+        "take:01": 0
+      },
+      "first_player_win_rate": 0.8333,
+      "mean_steps": 119.5,
+      "first_decided": 6,
+      "first_wins": 5,
+      "steps_total": 717
+    }
+  ],
+  "standings": [
+    {
+      "contestant": "take:01",
+      "wins": 5,
+      "losses": 1,
+      "decided": 6,
+      "win_rate": 0.8333,
+      "win_rate_ci95": [
+        0.4365,
+        0.9699
+      ]
+    },
+    {
+      "contestant": "ume:01",
+      "wins": 1,
+      "losses": 5,
+      "decided": 6,
+      "win_rate": 0.1667,
+      "win_rate_ci95": [
+        0.0301,
+        0.5635
+      ]
+    }
+  ],
+  "note": "engine has no seed API; results are statistical (Wilson CI), not bit-reproducible"
+}
