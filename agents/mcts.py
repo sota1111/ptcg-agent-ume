@@ -76,10 +76,23 @@ class MCTSConfig:
     max_candidates: int = 8
     #: PPO-policy rollout length before the value head scores the leaf.
     rollout_depth: int = 6
+    #: Softmax temperature of the PPO-guided rollout playouts (>0). Lower =
+    #: greedier playouts. SOT-1898 tunes this from the root policy_temperature.
+    rollout_temperature: float = 1.0
     #: PUCT exploration weight on the PPO prior.
     ucb_c: float = 1.0
     #: Override the policy pick only when beaten by at least this mean return.
     deviate_margin: float = 0.1
+    #: Search-driven mode (SOT-1898): search EVERY eligible decision, not just
+    #: critical ones. The criticality thresholds below still apply as the
+    #: fall-back gate once the match search budget is exhausted.
+    all_decision: bool = False
+    #: Match-level cumulative search-time budget in seconds (SOT-1898). ``0``
+    #: disables the guard (per-decision ``time_limit_s`` cap only). When set and
+    #: the cumulative search time reaches it, ``all_decision`` reverts to the
+    #: critical-only gate (現行harness挙動) for the rest of the match, and the
+    #: per-decision cap is clamped to the remaining budget.
+    match_search_budget_s: float = 0.0
     #: Critical when the masked-softmax entropy (nats) reaches this…
     entropy_threshold: float = 1.9
     #: …or the |value-head| output is at most this (game in the balance).
@@ -211,14 +224,30 @@ class DeterminizedMCTS:
         self.stats.eligible += 1
 
         logp = masked_log_softmax(logits, n)
-        if not logp or not is_critical(policy_entropy(logp), value, cfg):
+        if not logp:
+            return None
+        # SOT-1898 search-driven gate: in all-decision mode every eligible
+        # position is searched, UNLESS the match-level search budget is spent —
+        # then we revert to the critical-only gate (現行harness挙動). With
+        # all_decision off this is exactly the SOT-1690 critical-only behaviour.
+        spent_s = self.stats.elapsed_ms_total / 1000.0
+        budget_ok = cfg.match_search_budget_s <= 0 or spent_s < cfg.match_search_budget_s
+        search_all = cfg.all_decision and budget_ok
+        if not search_all and not is_critical(policy_entropy(logp), value, cfg):
             return None
         self.stats.activations += 1
+
+        # Time-budget adaptive per-decision cap: never let one decision overrun
+        # what remains of the match search budget (per-move timeout still guards
+        # the absolute ceiling in SafeAgent).
+        time_limit = cfg.time_limit_s
+        if cfg.match_search_budget_s > 0:
+            time_limit = min(time_limit, max(0.0, cfg.match_search_budget_s - spent_s))
 
         t0 = time.perf_counter()
         policy_pick = proposed[0] if proposed else None
         try:
-            means = self._search(parsed, logp, policy_pick)
+            means = self._search(parsed, logp, policy_pick, time_limit)
         except Exception:  # noqa: BLE001 - the search must never crash the agent
             means = None
         finally:
@@ -241,14 +270,22 @@ class DeterminizedMCTS:
 
     # -- search core ------------------------------------------------------------
     def _search(
-        self, parsed, logp: list[float], policy_pick: Optional[int]
+        self,
+        parsed,
+        logp: list[float],
+        policy_pick: Optional[int],
+        time_limit: Optional[float] = None,
     ) -> Optional[dict[int, float]]:
         """Pooled mean returns per root candidate, or ``None`` when unsearchable.
 
         The caller applies the ``deviate_margin`` override rule; here the job is
         only to produce comparable statistics across determinizations.
+        ``time_limit`` (seconds) overrides ``cfg.time_limit_s`` for this decision
+        (SOT-1898 adaptive budget); ``None`` falls back to the configured cap.
         """
         cfg = self.config
+        if time_limit is None:
+            time_limit = cfg.time_limit_s
         deck = self._deck()
         if not deck:
             return None
@@ -269,7 +306,7 @@ class DeterminizedMCTS:
         prior = {i: math.exp(logp[i]) for i in candidates}
         visits = {i: 0 for i in candidates}
         returns = {i: 0.0 for i in candidates}
-        deadline = time.perf_counter() + max(0.0, cfg.time_limit_s)
+        deadline = time.perf_counter() + max(0.0, time_limit)
         your_index = parsed.current.yourIndex
 
         for d in range(max(1, cfg.n_determinizations)):
@@ -386,6 +423,7 @@ class DeterminizedMCTS:
                     int(sel.minCount),
                     int(sel.maxCount),
                     self._rng,
+                    temperature=cfg.rollout_temperature,
                 )
                 try:
                     state = search_step(state.searchId, action)

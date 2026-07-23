@@ -75,7 +75,16 @@ _DECK_PATH = _resolve("deck.csv")
 # SOT-1875: the hardened high-variance profile is a bundled, versioned runtime
 # artifact.  Loading one source of truth prevents the submission entry point
 # and evaluation harness from silently drifting apart.
-RUNTIME_PROFILE = load_runtime_profile()
+# SOT-1898: an alternate profile may be selected via PTCG_UME_PROFILE (a path,
+# absolute or bundle-relative) so the league KPI gate can A/B the search-driven
+# candidate against the committed champion without editing the deck bundle. The
+# committed default remains the champion profile.
+_PROFILE_OVERRIDE = os.environ.get("PTCG_UME_PROFILE")
+RUNTIME_PROFILE = (
+    load_runtime_profile(_resolve(_PROFILE_OVERRIDE))
+    if _PROFILE_OVERRIDE
+    else load_runtime_profile()
+)
 PPO_TEMPERATURE = RUNTIME_PROFILE.policy_temperature
 
 

@@ -208,3 +208,119 @@ def test_mcts_search_respects_tiny_time_cap(deck):
     assert result.faulted_player != 0
     assert agent.mcts_stats.activations > 0
     assert agent.mcts_stats.elapsed_ms_max <= 10.0 + 300.0  # cap + bounded overhead
+
+
+# --------------------------------------------------------------------------- #
+# SOT-1898 search-driven gate (all-decision + overspend guard, engine-free)
+# --------------------------------------------------------------------------- #
+class _FakeCurrent:
+    yourIndex = 0
+
+
+class _FakeParsed:
+    """A searchable parsed observation (never reaches the engine — ``_search``
+    is stubbed), enough to pass ``maybe_search``'s eligibility gate."""
+
+    current = _FakeCurrent()
+    search_begin_input = object()
+
+
+class _FakeSelect:
+    def __init__(self, n_options: int, min_count: int = 1, max_count: int = 1) -> None:
+        self.option = list(range(n_options))
+        self.minCount = min_count
+        self.maxCount = max_count
+
+
+def _confident_logits() -> list[float]:
+    """A peaked, low-entropy distribution over 4 options — NOT critical."""
+    return [10.0, 0.0, 0.0, 0.0]
+
+
+def _make_mcts(cfg: MCTSConfig, stats: MCTSStats | None = None) -> DeterminizedMCTS:
+    return DeterminizedMCTS(tiny_policy(), cfg, rng=random.Random(7),
+                            stats=stats or MCTSStats())
+
+
+def test_all_decision_activates_non_critical(monkeypatch):
+    """all_decision searches an eligible position the critical gate would skip."""
+    captured = {}
+
+    def fake_search(parsed, logp, policy_pick, time_limit=None):
+        captured["time_limit"] = time_limit
+        # Make the searched best (option 1) beat the policy pick (option 0).
+        return {0: 0.0, 1: 1.0}
+
+    # value 0.9 + peaked logits => is_critical() is False.
+    cfg = MCTSConfig(all_decision=True, deviate_margin=0.02, time_limit_s=1.5)
+    mcts = _make_mcts(cfg)
+    monkeypatch.setattr(mcts, "_search", fake_search)
+    out = mcts.maybe_search({}, _FakeParsed(), _FakeSelect(4),
+                            _confident_logits(), 0.9, [0])
+    assert out == [1]                       # search overrode the policy pick
+    assert mcts.stats.activations == 1      # activated despite non-critical
+    assert mcts.stats.overrides == 1
+    assert captured["time_limit"] == pytest.approx(1.5)  # no budget => full cap
+
+
+def test_all_decision_off_keeps_critical_only(monkeypatch):
+    """With all_decision off, a non-critical position is never searched."""
+    calls = {"n": 0}
+
+    def fake_search(*a, **k):
+        calls["n"] += 1
+        return {0: 0.0, 1: 1.0}
+
+    cfg = MCTSConfig(all_decision=False)
+    mcts = _make_mcts(cfg)
+    monkeypatch.setattr(mcts, "_search", fake_search)
+    out = mcts.maybe_search({}, _FakeParsed(), _FakeSelect(4),
+                            _confident_logits(), 0.9, [0])
+    assert out is None
+    assert mcts.stats.eligible == 1 and mcts.stats.activations == 0
+    assert calls["n"] == 0
+
+
+def test_overspend_guard_reverts_to_critical(monkeypatch):
+    """Once the match search budget is spent, all_decision falls back to the
+    critical-only gate — a non-critical position stops activating."""
+    def fake_search(*a, **k):
+        return {0: 0.0, 1: 1.0}
+
+    cfg = MCTSConfig(all_decision=True, match_search_budget_s=1.0, deviate_margin=0.02)
+    # Pretend 1200 ms of search has already been spent (> 1.0 s budget).
+    stats = MCTSStats(elapsed_ms_total=1200.0)
+    mcts = _make_mcts(cfg, stats)
+    monkeypatch.setattr(mcts, "_search", fake_search)
+    out = mcts.maybe_search({}, _FakeParsed(), _FakeSelect(4),
+                            _confident_logits(), 0.9, [0])
+    assert out is None                      # guard tripped -> critical-only gate
+    assert mcts.stats.activations == 0
+
+    # A critical position (value ~0) still searches even past the budget.
+    out2 = mcts.maybe_search({}, _FakeParsed(), _FakeSelect(4),
+                             _confident_logits(), 0.0, [0])
+    assert out2 == [1] and mcts.stats.activations == 1
+
+
+def test_adaptive_time_limit_clamped_to_remaining_budget(monkeypatch):
+    """The per-decision cap is clamped to the remaining match search budget."""
+    captured = {}
+
+    def fake_search(parsed, logp, policy_pick, time_limit=None):
+        captured["time_limit"] = time_limit
+        return {0: 1.0, 1: 0.0}
+
+    cfg = MCTSConfig(all_decision=True, match_search_budget_s=2.0, time_limit_s=1.5)
+    stats = MCTSStats(elapsed_ms_total=1000.0)  # 1.0 s spent of a 2.0 s budget
+    mcts = _make_mcts(cfg, stats)
+    monkeypatch.setattr(mcts, "_search", fake_search)
+    mcts.maybe_search({}, _FakeParsed(), _FakeSelect(4),
+                      _confident_logits(), 0.0, [0])
+    # remaining = 2.0 - 1.0 = 1.0 s < time_limit_s (1.5) => clamped to 1.0.
+    assert captured["time_limit"] == pytest.approx(1.0)
+
+
+def test_rollout_temperature_default_and_config():
+    assert MCTSConfig().rollout_temperature == 1.0
+    assert MCTSConfig(rollout_temperature=0.35).rollout_temperature == 0.35

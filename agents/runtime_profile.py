@@ -62,6 +62,11 @@ def load_runtime_profile(path: str = PROFILE_PATH) -> RuntimeProfile:
             deviate_margin=float(search["deviate_margin"]),
             n_determinizations=int(search["n_determinizations"]),
             max_candidates=int(search["max_candidates"]),
+            # SOT-1898 search-driven knobs (optional; default to the SOT-1690
+            # critical-only behaviour when absent, so older profiles still load).
+            all_decision=bool(search.get("all_decision", False)),
+            rollout_temperature=float(search.get("rollout_temperature", 1.0)),
+            match_search_budget_s=float(search.get("match_search_budget_s", 0.0)),
         ),
         harness=HarnessConfig(
             top_alternatives=int(harness["top_alternatives"]),

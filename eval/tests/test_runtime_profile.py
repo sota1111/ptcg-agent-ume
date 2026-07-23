@@ -33,3 +33,23 @@ def test_submission_defaults_to_promoted_core_strategy() -> None:
     source = Path("main.py").read_text(encoding="utf-8")
     assert 'load_runtime_profile()' in source
     assert 'PTCG_UME_MIGRATION_MODE", "core"' in source
+
+
+def test_committed_champion_is_not_search_driven() -> None:
+    """The committed default must stay the SOT-1690 critical-only champion."""
+    profile = load_runtime_profile()
+    assert profile.mcts.all_decision is False
+    assert profile.mcts.match_search_budget_s == 0.0
+    assert profile.mcts.rollout_temperature == 1.0
+
+
+def test_search_driven_candidate_profile_parses() -> None:
+    """SOT-1898 opt-in candidate profile loads with the search-driven knobs."""
+    path = Path("agents/runtime_profile_search.json")
+    profile = load_runtime_profile(str(path))
+    assert profile.profile_id == "ume-search-driven-v1"
+    assert profile.mcts.all_decision is True
+    assert profile.mcts.match_search_budget_s == 300.0
+    assert profile.mcts.rollout_temperature == 0.35
+    # Adaptive per-decision cap still fits inside the per-move timeout.
+    assert 0 < profile.mcts.time_limit_s <= profile.per_move_timeout_s
