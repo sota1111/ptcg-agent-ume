@@ -83,6 +83,8 @@ class HarnessConfig:
     coverage_weight: float = 0.05
     #: Score bonus for acting at all when the engine allows an empty action.
     act_bonus: float = 0.02
+    #: Disabled for the committed champion until the promotion gate passes.
+    board_survival_weight: float = 0.0
 
 
 @dataclass
@@ -90,7 +92,7 @@ class Candidate:
     """One candidate move flowing through validate → score → decide."""
 
     action: list[int]
-    source: str  # "policy_sample" | "mcts" | "policy_argmax" | "policy_top" | "fallback"
+    source: str  # policy_sample | mcts | policy_argmax | policy_top | board_survival | fallback
     valid: Optional[bool] = None
     reject_reason: Optional[str] = None
     scores: dict[str, float] = field(default_factory=dict)
@@ -169,7 +171,7 @@ class DecisionHarness:
 
         candidates = self._generate(obs, parsed, select, features, logits, value, logp)
         self._validate(candidates, select)
-        self._score(candidates, select, logp)
+        self._score(candidates, parsed, select, logp)
         chosen = self._choose(candidates)
         self.last_candidates = candidates
         self.stats.record(chosen.source if chosen else "safe_fallback", candidates)
@@ -218,6 +220,19 @@ class DecisionHarness:
                     candidates.append(Candidate(action=[i], source="policy_top"))
                     seen.add((i,))
 
+        if self.config.board_survival_weight > 0 and min_count <= 1 <= max_count:
+            from .board_survival import survival_option_score
+            from .rule_agent import _card_index
+
+            seen = {tuple(c.action) for c in candidates}
+            for i in range(n):
+                if (
+                    (i,) not in seen
+                    and survival_option_score(parsed, select, i, _card_index()) > 0
+                ):
+                    candidates.append(Candidate(action=[i], source="board_survival"))
+                    seen.add((i,))
+
         candidates.append(
             Candidate(action=legal_random_action(select, self._rng), source="fallback")
         )
@@ -235,9 +250,18 @@ class DecisionHarness:
                 c.reject_reason = str(exc)
 
     # -- 3. scoring ------------------------------------------------------------
-    def _score(self, candidates: list[Candidate], select, logp: list[float]) -> None:
+    def _score(self, candidates: list[Candidate], parsed, select, logp: list[float]) -> None:
         cfg = self.config
         acting_optional = int(select.minCount) == 0
+        survival_scores: dict[int, float] = {}
+        if cfg.board_survival_weight > 0 and parsed is not None:
+            from .board_survival import survival_option_score
+            from .rule_agent import _card_index
+
+            for index in range(len(select.option)):
+                survival_scores[index] = survival_option_score(
+                    parsed, select, index, _card_index()
+                )
         for c in candidates:
             if not c.valid:
                 continue
@@ -246,10 +270,14 @@ class DecisionHarness:
             c.scores["coverage"] = (len(scored) / len(c.action)) if c.action else 0.0
             c.scores["acts"] = 1.0 if (acting_optional and c.action) else 0.0
             c.scores["mcts"] = 1.0 if c.source == "mcts" else 0.0
+            c.scores["board_survival"] = max(
+                (survival_scores.get(i, 0.0) for i in c.action), default=0.0
+            )
             c.total = (
                 c.scores["policy_logp"]
                 + cfg.coverage_weight * c.scores["coverage"]
                 + cfg.act_bonus * c.scores["acts"]
+                + cfg.board_survival_weight * c.scores["board_survival"]
             )
 
     # -- 4. decision -----------------------------------------------------------
@@ -259,6 +287,13 @@ class DecisionHarness:
         if not valid:
             return None
         for source in ("mcts", "policy_sample"):
+            if source == "policy_sample":
+                survival = [
+                    c for c in valid
+                    if c.source != "fallback" and c.scores.get("board_survival", 0.0) > 0
+                ]
+                if survival:
+                    return max(survival, key=lambda c: c.total)
             for c in valid:
                 if c.source == source:
                     return c
